@@ -1,7 +1,7 @@
 imageio-ffmpeg==0.6.0
 keyring==25.7.0
 moviepy==2.2.1
-numpy==2.4.6
+numpy>=2,<3
 openai-whisper==20250625
 opencv-python==5.0.0.93
 pillow==11.3.0
