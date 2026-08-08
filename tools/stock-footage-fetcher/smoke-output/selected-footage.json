@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-03T14:13:29+0700",
+  "source_csv": "D:\\yt-src\\TOOL-YOUTUBE\\download-pexels\\sample-prayer-footage.csv",
+  "selections": [
+    {
+      "provider": "pexels",
+      "video_id": "8091547",
+      "page_url": "https://www.pexels.com/video/a-smiling-woman-climbing-onto-a-window-sill-8091547/",
+      "download_url": "https://videos.pexels.com/video-files/8091547/8091547-uhd_4096_2160_24fps.mp4",
+      "preview_url": "https://images.pexels.com/videos/8091547/burglar-country-house-couple-couple-hugging-8091547.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=630&w=1200",
+      "width": 4096,
+      "height": 2160,
+      "duration": 12.0,
+      "contributor": "Yaroslav Shuraev",
+      "tags": "",
+      "query": "peaceful morning window",
+      "popularity": 0.0,
+      "semantic_score": 0.16647942121326922,
+      "final_score": 0.1940794212132692,
+      "visual_hash": "d7d7c7c5c5ccf9d8",
+      "beat_id": "H01",
+      "rank": 1,
+      "filename": "",
+      "status": "planned",
+      "error": "",
+      "selected_at": "2026-08-03T14:13:29+0700"
+    }
+  ]
+}

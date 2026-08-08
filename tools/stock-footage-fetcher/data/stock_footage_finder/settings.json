@@ -1,0 +1,18 @@
+{
+  "use_pexels": true,
+  "use_pixabay": false,
+  "max_queries": 3,
+  "max_pages": 3,
+  "per_page": 40,
+  "workers": 2,
+  "clips_per_beat": 2,
+  "candidate_pool": 40,
+  "shortlist": 12,
+  "min_duration": 8.0,
+  "min_score": 0.16,
+  "min_width": 1920,
+  "min_height": 1080,
+  "max_pixabay_downloads": 50,
+  "dry_run": false,
+  "last_project_dir": "E:\\DawnWithGod\\scripts\\0808"
+}

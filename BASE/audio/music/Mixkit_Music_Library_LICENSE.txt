@@ -1,0 +1,86 @@
+DAWN WITH GOD — MIXKIT MUSIC LIBRARY
+Downloaded: 2026-08-05
+
+License: Mixkit Stock Music Free License
+License URL: https://mixkit.co/license/#musicFree
+Catalog URL: https://mixkit.co/free-stock-music/
+
+At the time of download, Mixkit listed these recordings as free to use under the Mixkit Stock Music Free License. Mixkit states that its free stock music may be used in YouTube videos without attribution or sign-up. Keep this record with the original audio files and recheck the license page before redistributing any asset outside a finished video.
+
+01 — peaceful worship ambient piano
+Track: Valley Sunset
+Artist: Alejandro Magaña (A. M.)
+Genre: Ambient
+File: 01_Valley_Sunset_Alejandro_Magana_Mixkit.mp3
+Source: https://assets.mixkit.co/music/127/127.mp3
+Measured loudness: -17.51 LUFS
+True peak: -3.49 dBTP
+Recommended gain under voice: -16.5 dB
+
+02 — Christian prayer soft piano
+Track: Wedding 01
+Artist: Francisco Alvear
+Genre: Film Score
+File: 02_Wedding_01_Francisco_Alvear_Mixkit.mp3
+Source: https://assets.mixkit.co/music/657/657.mp3
+Measured loudness: -16.46 LUFS
+True peak: -2.86 dBTP
+Recommended gain under voice: -17.5 dB
+
+03 — healing prayer cinematic ambient
+Track: Vastness
+Artist: Andrew Ev
+Genre: Ambient
+File: 03_Vastness_Andrew_Ev_Mixkit.mp3
+Source: https://assets.mixkit.co/music/184/184.mp3
+Measured loudness: -13.54 LUFS
+True peak: -0.30 dBTP
+Recommended gain under voice: -20.5 dB
+
+04 — gentle worship instrumental
+Track: Tapis
+Artist: Eugenio Mininni
+Genre: Film Score
+File: 04_Tapis_Eugenio_Mininni_Mixkit.mp3
+Source: https://assets.mixkit.co/music/615/615.mp3
+Measured loudness: -14.47 LUFS
+True peak: -0.19 dBTP
+Recommended gain under voice: -19.5 dB
+
+05 — hopeful morning piano
+Track: Forest Mist Whispers
+Artist: Alejandro Magaña (A. M.)
+Genre: Ambient
+File: 05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3
+Source: https://assets.mixkit.co/music/148/148.mp3
+Measured loudness: -14.84 LUFS
+True peak: -0.05 dBTP
+Recommended gain under voice: -19.2 dB
+
+06 — emotional prayer piano warm pad
+Track: Skyline
+Artist: Eugenio Mininni
+Genre: Classical
+File: 06_Skyline_Eugenio_Mininni_Mixkit.mp3
+Source: https://assets.mixkit.co/music/601/601.mp3
+Measured loudness: -9.50 LUFS
+True peak: -0.13 dBTP
+Recommended gain under voice: -24.5 dB
+
+07 — peaceful inspirational piano no drums
+Track: Rest Now
+Artist: Eugenio Mininni
+Genre: Ambient
+File: 07_Rest_Now_Eugenio_Mininni_Mixkit.mp3
+Source: https://assets.mixkit.co/music/584/584.mp3
+Measured loudness: -16.03 LUFS
+True peak: -0.21 dBTP
+Recommended gain under voice: -18.0 dB
+
+MIXING TARGET
+Voice: -16 LUFS, maximum -1.5 dBTP
+Music under normal prayer voice: approximately -34 LUFS
+Music under faith response: approximately -32 LUFS
+Music under CTA: approximately -35 LUFS
+Music-only intro: approximately -25 LUFS
+Crossfade between tracks or loops: 6 to 8 seconds

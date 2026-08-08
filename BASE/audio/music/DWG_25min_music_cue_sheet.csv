@@ -1,0 +1,9 @@
+cue,start,end,track,prayer_section,crossfade_in_seconds,crossfade_out_seconds,gain_db,target_music_lufs,notes
+C01,00:00.000,02:13.780,01_Valley_Sunset_Alejandro_Magana_Mixkit.mp3,Pause and Hook,4,8,-17.5,-35.0,Gentle fade in under the opening voice
+C02,02:05.780,04:31.560,02_Wedding_01_Francisco_Alvear_Mixkit.mp3,Scripture and Gratitude,8,8,-17.5,-34.0,Keep piano behind every spoken word
+C03,04:23.560,08:13.380,03_Vastness_Andrew_Ev_Mixkit.mp3,Confession and Surrender,8,8,-21.5,-35.0,Lower bed for fear diagnosis and release
+C04,08:05.380,10:48.530,04_Tapis_Eugenio_Mininni_Mixkit.mp3,Core Healing Prayer,8,8,-19.5,-34.0,Stable prayer bed without a dramatic rise
+C05,10:40.530,13:11.470,05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3,Emotional Healing,8,8,-20.2,-35.0,Leave extra space for vulnerable lines
+C06,13:03.470,16:53.290,03_Vastness_Andrew_Ev_Mixkit.mp3,Intercession,8,8,-20.5,-34.0,Return of the main motif after almost five minutes
+C07,16:45.290,20:11.140,06_Skyline_Eugenio_Mininni_Mixkit.mp3,Faith Response,8,8,-23.0,-32.5,Slightly stronger but never louder than the voice
+C08,20:03.140,25:00.000,07_Rest_Now_Eugenio_Mininni_Mixkit.mp3,Benediction and CTA,8,6,-17.0,-33.0,Trim the final 2.91 seconds and automate to minus 19 dB for CTA

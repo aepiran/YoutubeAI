@@ -6,3 +6,45 @@
 *.log
 *.mp4
 *.avi
+.cache
+scripts/0805
+scripts/*/.cache
+scripts/*/video
+scripts/*/audio
+scripts/*/capcut_package
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.zip
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+*.egg-info/
+wheels/
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.pytest_cache/
+
+# Environments / Secrets
+.env
+.venv
+env/
+venv/
+
+# IDE/Editor settings
+.idea/
+.vscode/
+*.swp
+

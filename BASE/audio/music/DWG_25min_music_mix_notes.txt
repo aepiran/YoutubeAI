@@ -1,0 +1,30 @@
+DAWN WITH GOD — 25-MINUTE MUSIC MIX
+
+This cue sheet assumes the final voice has already been normalized to approximately -16 LUFS with a maximum true peak of -1.5 dBTP.
+
+Use track gain in dB. Do not use dBTP as a track-volume setting. dBTP is a peak measurement and limiter ceiling; LUFS is the perceived loudness target.
+
+NORMAL PRAYER
+Voice: -16 LUFS
+Music: -34 to -35 LUFS
+Relative music gap: approximately 18 to 19 dB below voice
+
+FAITH RESPONSE
+Voice: -16 LUFS
+Music: approximately -32.5 LUFS
+Relative music gap: approximately 16.5 dB below voice
+
+BENEDICTION
+Music: approximately -33 LUFS
+Hold the final visual and musical phrases longer; do not create a trailer-style climax.
+
+CTA
+Lower Rest Now from -17 dB to -19 dB track gain when the CTA begins. Keep the music near -35 LUFS and fade out over the final 6 seconds.
+
+CROSSFADES
+Use equal-power crossfades of 8 seconds between tracks. Do not stack both tracks at full gain during the overlap. If the editor lacks equal-power crossfade, fade the outgoing track down while fading the incoming track up over the same 8 seconds.
+
+MASTER
+Recommended completed-video loudness: approximately -16 LUFS integrated.
+Maximum master true peak: -1.0 to -1.5 dBTP.
+Do not normalize every music file to -16 LUFS; the music targets are intentionally much lower under narration.

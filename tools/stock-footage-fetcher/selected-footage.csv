@@ -1,0 +1,3 @@
+﻿beat_id,rank,provider,video_id,query,semantic_score,final_score,width,height,duration,contributor,page_url,filename,status,error
+H01,1,pexels,8516980,peaceful morning window,0.18257704392075538,0.21257704392075538,4096,2160,17.0,Yaroslav Shuraev,https://www.pexels.com/video/back-view-of-a-woman-looking-through-the-window-8516980/,H01_PEXELS_8516980.mp4,downloaded,
+H01,2,pexels,6639953,peaceful morning window,0.16981582729518413,0.19661582729518412,4096,2160,11.0,https://kaboompics.com/,https://www.pexels.com/video/a-woman-opening-a-window-6639953/,H01_PEXELS_6639953.mp4,downloaded,

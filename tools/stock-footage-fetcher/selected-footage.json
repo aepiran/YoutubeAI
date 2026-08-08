@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-03T14:50:14+0700",
+  "source_csv": "D:\\yt-src\\TOOL-YOUTUBE\\stock-footage-fetcher\\sample-prayer-footage.csv",
+  "selections": [
+    {
+      "provider": "pexels",
+      "video_id": "8516980",
+      "page_url": "https://www.pexels.com/video/back-view-of-a-woman-looking-through-the-window-8516980/",
+      "download_url": "https://videos.pexels.com/video-files/8516980/8516980-uhd_4096_2160_24fps.mp4",
+      "preview_url": "https://images.pexels.com/videos/8516980/asia-atelier-bi-couple-bisexual-8516980.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=630&w=1200",
+      "width": 4096,
+      "height": 2160,
+      "duration": 17.0,
+      "contributor": "Yaroslav Shuraev",
+      "tags": "",
+      "query": "peaceful morning window",
+      "popularity": 0.0,
+      "semantic_score": 0.18257704392075538,
+      "final_score": 0.21257704392075538,
+      "visual_hash": "36767d7738397ded",
+      "beat_id": "H01",
+      "rank": 1,
+      "filename": "H01_PEXELS_8516980.mp4",
+      "status": "downloaded",
+      "error": "",
+      "selected_at": "2026-08-03T14:50:12+0700"
+    },
+    {
+      "provider": "pexels",
+      "video_id": "6639953",
+      "page_url": "https://www.pexels.com/video/a-woman-opening-a-window-6639953/",
+      "download_url": "https://videos.pexels.com/video-files/6639953/6639953-uhd_4096_2160_25fps.mp4",
+      "preview_url": "https://images.pexels.com/videos/6639953/relax-relaxation-relaxing-spiritual-6639953.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=630&w=1200",
+      "width": 4096,
+      "height": 2160,
+      "duration": 11.0,
+      "contributor": "https://kaboompics.com/",
+      "tags": "",
+      "query": "peaceful morning window",
+      "popularity": 0.0,
+      "semantic_score": 0.16981582729518413,
+      "final_score": 0.19661582729518412,
+      "visual_hash": "33333313133b3733",
+      "beat_id": "H01",
+      "rank": 2,
+      "filename": "H01_PEXELS_6639953.mp4",
+      "status": "downloaded",
+      "error": "",
+      "selected_at": "2026-08-03T14:50:14+0700"
+    }
+  ]
+}
