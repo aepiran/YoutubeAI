@@ -3,7 +3,7 @@ Language: English
 Voice: DWG   uv_80e246b4
 Speed: 0.935
 Pitch: 0
-Volume: 1.00
+Volume: 1.10
 
 Độ dài kịch bản là 3926
 
