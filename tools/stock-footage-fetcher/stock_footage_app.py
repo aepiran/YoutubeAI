@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
 
         return worker_main(arguments[1:])
     parser = argparse.ArgumentParser(description="Stock Footage Finder GUI")
-    parser.add_argument("--project", help="Project folder or footage.csv to open")
+    parser.add_argument("--project", help="Project folder or script_beat.csv to open")
     parsed = parser.parse_args(arguments)
     return run_gui(parsed.project)
 

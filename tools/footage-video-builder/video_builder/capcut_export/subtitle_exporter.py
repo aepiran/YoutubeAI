@@ -14,13 +14,78 @@ def _clean_caption_text(words: list[str]) -> str:
     return re.sub(r"\s+([,.;:!?])", r"\1", text).strip()
 
 
+def wrap_caption_text(
+    text: str,
+    *,
+    max_lines: int = 4,
+    max_characters_per_line: int = 14,
+) -> str:
+    """Wrap at word boundaries without exceeding the character limit."""
+    if max_lines < 1:
+        raise ValueError("max_lines must be at least 1")
+    if max_characters_per_line < 1:
+        raise ValueError("max_characters_per_line must be at least 1")
+    words = text.split()
+    if not words:
+        return ""
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > max_characters_per_line:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    if len(lines) > max_lines:
+        raise ValueError(
+            f"Caption needs {len(lines)} lines but the configured layout only "
+            f"supports {max_lines}"
+        )
+    return "\n".join(lines)
+
+
+def _caption_chunks(
+    text: str,
+    max_lines: int,
+    max_characters_per_line: int,
+) -> list[str]:
+    chunks: list[str] = []
+    words: list[str] = []
+    for word in text.split():
+        candidate = _clean_caption_text([*words, word])
+        try:
+            wrap_caption_text(
+                candidate,
+                max_lines=max_lines,
+                max_characters_per_line=max_characters_per_line,
+            )
+        except ValueError:
+            if words:
+                chunks.append(_clean_caption_text(words))
+                words = [word]
+            else:
+                chunks.append(word)
+        else:
+            words.append(word)
+    if words:
+        chunks.append(_clean_caption_text(words))
+    return chunks
+
+
 def captions_from_word_timings(
     timings: list[dict],
     *,
-    max_characters: int = 46,
+    max_characters: int | None = None,
     max_duration: float = 3.5,
     max_gap: float = 0.75,
+    max_lines: int = 4,
+    max_characters_per_line: int = 14,
 ) -> list[CaptionCue]:
+    if max_lines < 1 or max_characters_per_line < 1:
+        raise ValueError("Caption line and character limits must be at least 1")
     cues: list[CaptionCue] = []
     words: list[str] = []
     cue_start = 0.0
@@ -36,7 +101,11 @@ def captions_from_word_timings(
                 index=len(cues) + 1,
                 start=max(0.0, cue_start),
                 end=max(cue_start + 0.08, cue_end),
-                text=_clean_caption_text(words),
+                text=wrap_caption_text(
+                    _clean_caption_text(words),
+                    max_lines=max_lines,
+                    max_characters_per_line=max_characters_per_line,
+                ),
             )
         )
         words = []
@@ -48,10 +117,20 @@ def captions_from_word_timings(
         start = float(item["start"])
         end = float(item["end"])
         candidate = _clean_caption_text([*words, word])
+        try:
+            wrap_caption_text(
+                candidate,
+                max_lines=max_lines,
+                max_characters_per_line=max_characters_per_line,
+            )
+            exceeds_layout = False
+        except ValueError:
+            exceeds_layout = True
         should_split = bool(words) and (
             start - previous_end > max_gap
             or end - cue_start > max_duration
-            or len(candidate) > max_characters
+            or (max_characters is not None and len(candidate) > max_characters)
+            or exceeds_layout
         )
         if should_split:
             flush()
@@ -66,7 +145,14 @@ def captions_from_word_timings(
     return cues
 
 
-def captions_from_timeline(rows: list[dict]) -> list[CaptionCue]:
+def captions_from_timeline(
+    rows: list[dict],
+    *,
+    max_lines: int = 4,
+    max_characters_per_line: int = 14,
+) -> list[CaptionCue]:
+    if max_lines < 1 or max_characters_per_line < 1:
+        raise ValueError("Caption line and character limits must be at least 1")
     cues = []
     for row in rows:
         text = str(row.get("narration", "")).strip()
@@ -74,14 +160,33 @@ def captions_from_timeline(rows: list[dict]) -> list[CaptionCue]:
             continue
         start = float(row.get("timeline_start", 0.0))
         end = float(row.get("timeline_end", start))
-        cues.append(
-            CaptionCue(
-                index=len(cues) + 1,
-                start=max(0.0, start),
-                end=max(start + 0.08, end),
-                text=text,
-            )
+        chunks = _caption_chunks(
+            text,
+            max_lines,
+            max_characters_per_line,
         )
+        total_words = sum(len(chunk.split()) for chunk in chunks)
+        cursor = start
+        for chunk_index, chunk in enumerate(chunks):
+            chunk_words = len(chunk.split())
+            chunk_end = (
+                end
+                if chunk_index == len(chunks) - 1
+                else cursor + (end - start) * chunk_words / total_words
+            )
+            cues.append(
+                CaptionCue(
+                    index=len(cues) + 1,
+                    start=max(0.0, cursor),
+                    end=max(cursor + 0.08, chunk_end),
+                    text=wrap_caption_text(
+                        chunk,
+                        max_lines=max_lines,
+                        max_characters_per_line=max_characters_per_line,
+                    ),
+                )
+            )
+            cursor = chunk_end
     return cues
 
 
@@ -143,7 +248,7 @@ def parse_srt(path: Path) -> list[CaptionCue]:
                 index=len(cues) + 1,
                 start=seconds(match.groups()[:4]),
                 end=seconds(match.groups()[4:]),
-                text=" ".join(lines[2:]).strip(),
+                text="\n".join(lines[2:]).strip(),
             )
         )
     if not cues:

@@ -1,7 +1,7 @@
 # Stock Footage Finder
 
 Ứng dụng desktop tìm, chấm và tải stock video Pexels + Pixabay theo
-`footage.csv`. Giao diện sử dụng phong cách dark dashboard tương tự
+`script_beat.csv`. Giao diện sử dụng phong cách dark dashboard tương tự
 Footage Finder AI.
 
 ## Chạy giao diện
@@ -18,7 +18,7 @@ Bạn cũng có thể chạy `stock_footage_app.py` hoặc `run_gui.bat`.
 
 Trong ứng dụng:
 
-1. Chọn thư mục project hoặc file `footage.csv`.
+1. Chọn thư mục project hoặc file `script_beat.csv`.
 2. Mở Settings và nhập Pexels/Pixabay API key.
 3. Bật Dry Run nếu muốn chỉ kiểm tra lựa chọn.
 4. Bấm **Start Search**.

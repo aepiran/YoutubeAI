@@ -46,7 +46,7 @@ class ProjectModel(QObject):
         self._footage_dir: Optional[Path] = None
         self._output_dir: Optional[Path] = None
         self._voice_files: List[Path] = []
-        self._beats_csv_data: List[Dict[str, str]] = [] # Dữ liệu thô từ footage.csv
+        self._beats_csv_data: List[Dict[str, str]] = [] # Dữ liệu thô từ script_beat.csv
         self._selected_footage_json_data: Dict[str, Any] = {} # Dữ liệu đã phân tích từ selected-footage.json
         self._beat_results: Dict[str, BeatHealthResult] = {} # Kết quả health sau phân tích
 
@@ -96,7 +96,7 @@ class ProjectModel(QObject):
         self._selected_footage_json_data = {}
         self._beat_results = {} # Xóa kết quả cũ
 
-        # Tải script.txt, footage.csv, selected-footage.json, v.v.
+        # Tải script.txt, script_beat.csv, selected-footage.json, v.v.
         # (Logic tải file tương tự như trong MainWindow hiện tại)
         # Ví dụ:
         script_file = self._project_path / "script.txt"

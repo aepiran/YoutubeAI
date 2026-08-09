@@ -284,7 +284,7 @@ def select_beats_for_sections(
         labels = ", ".join(map(str, sorted(selected_indexes)))
         raise ValueError(
             f"Không thể phân bổ Beat cho Section {labels}. "
-            "Hãy kiểm tra cột section trong footage.csv."
+            "Hãy kiểm tra cột section trong script_beat.csv."
         )
     return selected
 
@@ -341,7 +341,7 @@ def assign_beats_to_sections(
     explicit = [bool(beat.section.strip()) for beat in beats]
     if any(explicit) and not all(explicit):
         raise ValueError(
-            "Cột section trong footage.csv phải được điền cho toàn bộ Beat "
+            "Cột section trong script_beat.csv phải được điền cho toàn bộ Beat "
             "hoặc để trống toàn bộ."
         )
     assigned = {section.index: [] for section in sections}
@@ -374,7 +374,7 @@ def assign_beats_to_sections(
         raise ValueError(
             "Các Section chưa có Beat: "
             + ", ".join(missing)
-            + ". Hãy bổ sung cột section trong footage.csv."
+            + ". Hãy bổ sung cột section trong script_beat.csv."
         )
     return assigned
 

@@ -49,7 +49,7 @@ flowchart LR
 flowchart TD
     P[Project] --> V[Đúng 1 Audio]
     P --> S[script.txt]
-    P --> B[footage.csv]
+    P --> B[script_beat.csv]
     P --> F[video/]
     V --> A[Căn word timing]
     S --> A

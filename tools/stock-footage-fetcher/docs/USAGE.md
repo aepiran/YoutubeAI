@@ -4,7 +4,7 @@
 
 ```text
 E:\NE\scripts\0000\
-├── footage.csv
+├── script_beat.csv
 └── video\
 ```
 
@@ -85,8 +85,8 @@ python main.py `
 
 | Tham số | Mặc định | Ý nghĩa |
 |---|---:|---|
-| `--project-dir` | Không | Project chứa `footage.csv` và `video/` |
-| `--csv` | `download-pexels/footage.csv` | Ghi đè CSV |
+| `--project-dir` | Không | Project chứa `script_beat.csv` và `video/` |
+| `--csv` | `download-pexels/script_beat.csv` | Ghi đè CSV |
 | `--output-dir` | `download-pexels/video` | Ghi đè nơi tải |
 | `--workers` | 2 | Beat chạy đồng thời, từ 1–8 |
 | `--max-pages` | 5 | Số trang tối đa, từ 1–50 |

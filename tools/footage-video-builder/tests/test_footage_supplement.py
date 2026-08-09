@@ -61,7 +61,7 @@ class FootageSupplementTests(unittest.TestCase):
     def test_written_plan_keeps_original_dwg_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            beats = root / "footage.csv"
+            beats = root / "script_beat.csv"
             with beats.open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.DictWriter(
                     handle,

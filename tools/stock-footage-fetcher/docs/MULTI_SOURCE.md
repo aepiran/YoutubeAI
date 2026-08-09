@@ -1,6 +1,6 @@
 # Tìm footage đa nguồn Pexels + Pixabay
 
-`multi_source.py` đọc `footage.csv`, tìm ứng viên từ hai API, chấm preview bằng
+`multi_source.py` đọc `script_beat.csv`, tìm ứng viên từ hai API, chấm preview bằng
 SigLIP 2, chống trùng trên toàn project, tải video được chọn và tạo manifest.
 
 ## Cấu trúc project
@@ -8,9 +8,9 @@ SigLIP 2, chống trùng trên toàn project, tải video được chọn và t�
 ```text
 project/
 ├── script.txt
-├── footage.csv
+├── script_beat.csv
 ├── selected-footage.json
-├── selected-footage.csv
+├── selected-script_beat.csv
 ├── video/
 │   ├── H01_PEXELS_123.mp4
 │   └── H01_PIXABAY_456.mp4
@@ -39,7 +39,7 @@ cd D:\yt-src\TOOL-YOUTUBE\stock-footage-fetcher
 ```
 
 Kết quả lựa chọn được ghi vào `selected-footage.json` và
-`selected-footage.csv` với trạng thái `planned`.
+`selected-script_beat.csv` với trạng thái `planned`.
 
 ## Tìm và tải tự động
 

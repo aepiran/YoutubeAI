@@ -236,7 +236,7 @@ class GuideDialog(QDialog):
         layout = QVBoxLayout(self)
         text = QLabel(
             "<h2>Stock Footage Finder</h2>"
-            "<p><b>1.</b> Chuẩn bị project có file <code>footage.csv</code>.</p>"
+            "<p><b>1.</b> Chuẩn bị project có file <code>script_beat.csv</code>.</p>"
             "<p><b>2.</b> Chọn project hoặc chọn trực tiếp CSV.</p>"
             "<p><b>3.</b> Mở Settings, bật nguồn và nhập API key.</p>"
             "<p><b>4.</b> Dùng Dry Run để kiểm tra lựa chọn trước khi tải.</p>"

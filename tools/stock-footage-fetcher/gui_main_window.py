@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         label.setStyleSheet("color:#f7f9ff;font-weight:700;")
         layout.addWidget(label)
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Chọn thư mục project hoặc file footage.csv")
+        self.path_edit.setPlaceholderText("Chọn thư mục project hoặc file script_beat.csv")
         self.path_edit.returnPressed.connect(self._load_path_from_edit)
         layout.addWidget(self.path_edit, 1)
 
@@ -198,7 +198,7 @@ class MainWindow(QMainWindow):
         heading = QLabel("REQUEST QUEUE")
         heading.setStyleSheet(SECTION_TITLE_STYLE)
         layout.addWidget(heading)
-        hint = QLabel("Các Beat được đọc trực tiếp từ footage.csv")
+        hint = QLabel("Các Beat được đọc trực tiếp từ script_beat.csv")
         hint.setStyleSheet(MUTED_LABEL_STYLE)
         layout.addWidget(hint)
 
@@ -331,7 +331,7 @@ class MainWindow(QMainWindow):
     def _choose_csv(self) -> None:
         start = str(self.project_dir or Path.cwd())
         selected, _ = QFileDialog.getOpenFileName(
-            self, "Chọn footage.csv", start, "CSV files (*.csv)"
+            self, "Chọn script_beat.csv", start, "CSV files (*.csv)"
         )
         if selected:
             self._load_path(Path(selected))
@@ -343,9 +343,9 @@ class MainWindow(QMainWindow):
 
     def _load_path(self, path: Path) -> None:
         path = path.expanduser().resolve()
-        csv_path = path / "footage.csv" if path.is_dir() else path
+        csv_path = path / "script_beat.csv" if path.is_dir() else path
         if not csv_path.is_file():
-            self._show_error(f"Không tìm thấy footage.csv tại:\n{csv_path}")
+            self._show_error(f"Không tìm thấy script_beat.csv tại:\n{csv_path}")
             return
         try:
             with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -436,7 +436,7 @@ class MainWindow(QMainWindow):
 
     def _start_search(self) -> None:
         if not self.csv_path or not self.project_dir:
-            self._show_error("Hãy chọn project có footage.csv trước.")
+            self._show_error("Hãy chọn project có script_beat.csv trước.")
             return
         if not self.settings.use_pexels and not self.settings.use_pixabay:
             self._show_error("Hãy bật ít nhất một nguồn trong Settings.")

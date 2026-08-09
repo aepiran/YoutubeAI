@@ -5,7 +5,7 @@
 ```text
 E:\NE\scripts\0000\
 ├── script.txt
-├── footage.csv
+├── script_beat.csv
 ├── voices\
 │   └── narration.mp3
 └── video\
@@ -108,8 +108,20 @@ CLI:
 python main.py --cli `
   --base-dir "E:\NE\scripts\0000" `
   --export-capcut-package `
+  --caption-max-lines 4 `
+  --caption-max-characters-per-line 14 `
   --capcut-output-dir "E:\NE\scripts\0000\capcut_package"
 ```
+
+Trong **Cấu hình > CapCut > Caption layout**, đặt số dòng tối đa và số ký tự tối
+đa trên mỗi dòng. Builder chỉ ngắt tại khoảng trắng và không cắt giữa từ.
+Caption vượt tổng sức chứa sẽ được tách thành cue kế tiếp theo tỷ lệ thời lượng,
+không cắt bỏ chữ. Mặc định là `4 dòng × 4 từ`.
+
+Template đang chọn trong Settings luôn được ưu tiên khi Replace Draft. Photo
+overlay của template giữ nguyên vị trí và kích thước, đồng thời kéo tới hết
+timeline. Khi narration ngắn hơn mốc `Video tối thiểu`, Builder lặp phần nhạc
+cuối để phủ đúng toàn bộ outro.
 
 `narration.wav` được đặt tại đầu Timeline và giữ toàn bộ lời thoại.
 
@@ -149,4 +161,3 @@ Tìm cảnh dài hơn. Không tăng audio, không cắt audio và không cho vid
 ### Model chưa có
 
 Kết nối Internet trong lần đầu hoặc bật tự tải model trong Cấu hình.
-

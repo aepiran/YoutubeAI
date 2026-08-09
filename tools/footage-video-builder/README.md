@@ -4,7 +4,7 @@
 
 - Một file kịch bản.
 - Đúng một file audio lời thoại.
-- Một danh sách Beat trong `footage.csv`.
+- Một danh sách Beat trong `script_beat.csv`.
 - Kho video footage đã gắn mã Beat.
 
 Ứng dụng phân tích audio, chia Cut, chấm footage bằng model thị giác, tối ưu
@@ -15,7 +15,7 @@ toàn Timeline, cảnh báo nguồn yếu/lặp cảnh và xuất MP4 hoặc Dra
 ```text
 project/
 ├── script.txt
-├── footage.csv
+├── script_beat.csv
 ├── voice/ (hoặc voices/)
 │   └── narration.mp3
 ├── video/
@@ -31,7 +31,7 @@ Quy tắc bắt buộc:
   audio đánh số ngay tại thư mục project.
 - Audio không bị cắt, tua ngược hoặc ghép lặp.
 - `script.txt` là toàn bộ lời thoại.
-- `footage.csv` không cần cột chia đoạn.
+- `script_beat.csv` không cần cột chia đoạn.
 - Mỗi footage nên bắt đầu bằng mã Beat, ví dụ `H31_cave_search.mp4`.
 
 ## Khởi động
@@ -106,6 +106,15 @@ Audio nguồn là trục thời gian chính:
 - CapCut dùng một file `narration.wav` đặt tại `00:00:00`.
 - Không tạo các audio nhỏ cho từng Cut.
 
+Caption CapCut mặc định được ngắt theo `4 dòng × 14 ký tự`. Có thể đổi trong
+**Cấu hình > CapCut > Caption layout** hoặc bằng `--caption-max-lines` và
+`--caption-max-characters-per-line`. Caption dài hơn sức chứa được tách thành cue kế
+tiếp; hệ thống không cắt giữa từ và không bỏ nội dung.
+
+Khi template có một photo overlay ở video track phía trên footage, Builder giữ
+nguyên position/scale của overlay và kéo nó tới hết video. Nếu narration ngắn
+hơn `Video tối thiểu`, cue nhạc cuối được nối lại để nhạc phủ đủ phần outro.
+
 Profile DWG tự động dùng thư viện `BASE/audio/music` và file
 `DWG_25min_music_cue_sheet.csv`. Gain dB, điểm vào/ra và crossfade trong CSV
 được áp dụng thống nhất khi render MP4 và xuất CapCut. Các cue chồng nhau được
@@ -131,7 +140,7 @@ dùng `--minimum-video-minutes 0` để vô hiệu hóa.
 - [Kiến trúc và sơ đồ hoạt động](docs/ARCHITECTURE.md)
 - [Triển khai](docs/DEPLOYMENT.md)
 - [Hướng dẫn sử dụng](docs/USAGE.md)
-- [Prompt tạo footage.csv](prompt-packages/SCRIPT_TO_FOOTAGE_CSV.md)
+- [Prompt tạo script_beat.csv](prompt-packages/SCRIPT_TO_FOOTAGE_CSV.md)
 
 ## Kiểm thử
 

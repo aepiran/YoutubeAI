@@ -1,0 +1,25 @@
+{
+  "app": "TTS Script to MP3",
+  "version": "2.5.0",
+  "run_mode": "parallel",
+  "parallel_enabled": true,
+  "worker_count": 3,
+  "updated_at": "2026-08-08 22:40:52",
+  "segments": [
+    {
+      "index": 1,
+      "heading": "Segment 1",
+      "text": "This prayer is for  \nspiritual encouragement.\n\nIt is not a substitute for  \nprofessional medical advice,  \ndiagnosis, or treatment.",
+      "word_count": 18,
+      "char_count": 131,
+      "output_file": "001.mp3",
+      "status": "done",
+      "progress": 1.0,
+      "job_id": "23fcfbaf-35c1-4733-bc1a-5db4d939e1c8",
+      "audio_url": "/api/v1/tts/audio/1544803",
+      "srt_url": "https://www.aimaxstudio.com/audio/1544803_1786203648.srt",
+      "error": "",
+      "selected": true
+    }
+  ]
+}

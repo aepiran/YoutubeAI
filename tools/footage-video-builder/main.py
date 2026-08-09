@@ -108,6 +108,10 @@ def run_cli(argv: list[str] | None = None) -> int:
             ),
             capcut_hook_volume_db=args.capcut_hook_volume_db,
             capcut_body_music=parse_capcut_body_music(args.capcut_body_music),
+            caption_max_lines=args.caption_max_lines,
+            caption_max_characters_per_line=(
+                args.caption_max_characters_per_line
+            ),
             analyze_sections=(
                 set(args.analyze_section)
                 if args.analyze_section

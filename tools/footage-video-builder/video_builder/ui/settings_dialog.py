@@ -70,6 +70,8 @@ class BuilderUiSettings:
     music_dir: str = ""
     music_cue_sheet: str = ""
     capcut_use_main_music: bool = False
+    caption_max_lines: int = 4
+    caption_max_characters_per_line: int = 14
 
 
 class ModelDownloadWorker(QThread):
@@ -125,6 +127,10 @@ class SettingsDialog(QDialog):
             music_dir=self.music_dir_edit.text().strip(),
             music_cue_sheet=self.music_cue_sheet_edit.text().strip(),
             capcut_use_main_music=self.capcut_use_main_music_check.isChecked(),
+            caption_max_lines=self.caption_max_lines_spin.value(),
+            caption_max_characters_per_line=(
+                self.caption_max_characters_spin.value()
+            ),
         )
 
     def _build_ui(self, settings: BuilderUiSettings) -> None:
@@ -341,6 +347,30 @@ class SettingsDialog(QDialog):
         drafts_row.addWidget(self.capcut_drafts_edit, 1)
         drafts_row.addWidget(self.capcut_drafts_btn)
 
+        self.caption_max_lines_spin = QSpinBox()
+        self.caption_max_lines_spin.setRange(1, 8)
+        self.caption_max_lines_spin.setValue(settings.caption_max_lines)
+        self.caption_max_lines_spin.setToolTip(
+            "Caption vượt giới hạn sẽ được tách thành cue tiếp theo."
+        )
+        self.caption_max_characters_spin = QSpinBox()
+        self.caption_max_characters_spin.setRange(1, 99)
+        self.caption_max_characters_spin.setMinimumWidth(80)
+        self.caption_max_characters_spin.setKeyboardTracking(False)
+        self.caption_max_characters_spin.setValue(
+            settings.caption_max_characters_per_line
+        )
+        self.caption_max_characters_spin.setToolTip(
+            "Số ký tự tối đa trên mỗi dòng; chỉ xuống dòng tại khoảng trắng."
+        )
+        caption_layout_row = QHBoxLayout()
+        caption_layout_row.addWidget(QLabel("Max lines"))
+        caption_layout_row.addWidget(self.caption_max_lines_spin)
+        caption_layout_row.addSpacing(16)
+        caption_layout_row.addWidget(QLabel("Max characters / line"))
+        caption_layout_row.addWidget(self.caption_max_characters_spin)
+        caption_layout_row.addStretch(1)
+
         self.capcut_use_main_music_check = QCheckBox(
             "Sử dụng nhạc nền chung của Project cho CapCut"
         )
@@ -404,6 +434,7 @@ class SettingsDialog(QDialog):
         body_music_box.addLayout(body_music_buttons)
 
         form.addRow("Draft folder", drafts_row)
+        form.addRow("Caption layout", caption_layout_row)
         form.addRow("", self.capcut_use_main_music_check)
         form.addRow("Hook music", hook_music_row)
         form.addRow("Body music", body_music_box)

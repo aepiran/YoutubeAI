@@ -826,7 +826,7 @@ def save_manifest(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Search and download ranked Pexels/Pixabay footage for footage.csv"
+        description="Search and download ranked Pexels/Pixabay footage for script_beat.csv"
     )
     parser.add_argument("--project-dir", type=Path)
     parser.add_argument("--csv", type=Path)
@@ -871,7 +871,7 @@ def build_parser() -> argparse.ArgumentParser:
 def resolve_paths(args: argparse.Namespace) -> None:
     project = args.project_dir.expanduser().resolve() if args.project_dir else ROOT_DIR
     args.project_dir = project
-    args.csv = (args.csv or project / "footage.csv").expanduser().resolve()
+    args.csv = (args.csv or project / "script_beat.csv").expanduser().resolve()
     args.output_dir = (args.output_dir or project / "video").expanduser().resolve()
     args.manifest = (
         args.manifest or project / "selected-footage.json"

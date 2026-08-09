@@ -474,7 +474,7 @@ def align_beats_to_script(
             "Beat CSV chưa bao phủ toàn bộ kịch bản: "
             f"chỉ căn được khoảng {coverage:.0%}, còn "
             f"{unaligned_word_count} từ chưa có Beat. "
-            "Hãy bổ sung các dòng Beat còn thiếu trong footage.csv."
+            "Hãy bổ sung các dòng Beat còn thiếu trong script_beat.csv."
         )
 
     boundaries = [cursor]

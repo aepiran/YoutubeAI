@@ -28,7 +28,7 @@ class GuiTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_main_window_loads_prayer_csv(self) -> None:
-        window = MainWindow(initial_project=str(ROOT / "sample-prayer-footage.csv"))
+        window = MainWindow(initial_project=str(ROOT / "sample-prayer-script_beat.csv"))
         self.assertEqual(window.queue_table.rowCount(), 1)
         self.assertEqual(window.queue_table.item(0, 1).text(), "H01")
         self.assertEqual(window.csv_chip.text(), "1 Beat")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,8 +19,11 @@ from video_builder.ui.main_window import (
     footage_search_keywords,
     format_stage_duration,
     inspect_timeline_health,
+    preferred_capcut_template,
     preferred_project_voice,
 )
+
+REFRESH_START_ENABLED = MainWindow._refresh_start_enabled
 
 
 class PreferredVoiceTests(unittest.TestCase):
@@ -35,6 +39,20 @@ class PreferredVoiceTests(unittest.TestCase):
             (legacy / "001.mp3").write_bytes(b"legacy")
 
             self.assertEqual(preferred_project_voice(root), preferred.resolve())
+
+    def test_current_capcut_template_wins_over_stale_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            selected = root / "DWG_Template"
+            stale = root / "DWG_Master_Template"
+            selected.mkdir()
+            stale.mkdir()
+
+            result = preferred_capcut_template(
+                str(selected), {"template": str(stale)}
+            )
+
+            self.assertEqual(result, selected)
 
 
 class TimelineHealthTests(unittest.TestCase):
@@ -219,6 +237,15 @@ class WorkflowUiTests(unittest.TestCase):
         self.assertFalse(hasattr(self.window, "workflow_scope_label"))
         self.assertFalse(hasattr(self.window, "selection_summary_label"))
         self.assertEqual(
+            self.window.find_footage_btn.text(),
+            "Tìm footage",
+        )
+        self.assertEqual(
+            self.window.find_footage_btn.accessibleName(),
+            "Tìm footage",
+        )
+        self.assertFalse(self.window.find_footage_btn.icon().isNull())
+        self.assertEqual(
             (
                 arguments[arguments.index("--min-cut-seconds") + 1],
                 arguments[arguments.index("--target-cut-seconds") + 1],
@@ -226,6 +253,31 @@ class WorkflowUiTests(unittest.TestCase):
             ),
             ("3.0", "4.0", "5.0"),
         )
+
+    def test_find_footage_is_independent_from_supplement_state(self) -> None:
+        self.window._running = False
+        with patch.object(self.window, "_are_inputs_ready", return_value=False):
+            REFRESH_START_ENABLED(self.window)
+
+        self.assertTrue(self.window.find_footage_btn.isEnabled())
+        self.assertFalse(self.window.supplement_btn.isEnabled())
+
+        self.window._set_running_ui_state(True)
+
+        self.assertTrue(self.window.find_footage_btn.isEnabled())
+        self.assertFalse(self.window.supplement_btn.isEnabled())
+
+    def test_find_footage_opens_standalone_finder_without_analysis(self) -> None:
+        self.window.project_edit.clear()
+        with patch(
+            "video_builder.ui.main_window.QProcess.startDetached",
+            return_value=(True, 1234),
+        ) as start_detached:
+            self.window.find_footage_btn.click()
+
+        start_detached.assert_called_once()
+        arguments = start_detached.call_args.args[1]
+        self.assertNotIn("--project", arguments)
 
     def test_full_reanalysis_is_explicit_and_forces_cache_refresh(self) -> None:
         arguments = self.window._build_cli_arguments("analyze_force")
@@ -333,6 +385,32 @@ class WorkflowUiTests(unittest.TestCase):
         self.assertIn("capcut_drafts", arguments)
         self.assertIn("--capcut-draft-name", arguments)
         self.assertIn("NewDraft", arguments)
+        self.assertIn("--caption-max-lines", arguments)
+        self.assertEqual(
+            arguments[arguments.index("--caption-max-lines") + 1], "4"
+        )
+        self.assertIn("--caption-max-characters-per-line", arguments)
+        self.assertEqual(
+            arguments[
+                arguments.index("--caption-max-characters-per-line") + 1
+            ],
+            "14",
+        )
+
+    def test_capcut_export_accepts_two_digit_characters_per_line(self) -> None:
+        self.window.builder_settings = replace(
+            self.window.builder_settings,
+            caption_max_characters_per_line=16,
+        )
+
+        arguments = self.window._build_cli_arguments("export_capcut")
+
+        self.assertEqual(
+            arguments[
+                arguments.index("--caption-max-characters-per-line") + 1
+            ],
+            "16",
+        )
 
     def test_beat_table_names_audio_and_footage_timelines(self) -> None:
         self.assertEqual(

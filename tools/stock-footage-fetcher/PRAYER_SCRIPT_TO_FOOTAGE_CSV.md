@@ -1,4 +1,4 @@
-# Prompt tạo footage.csv cho Dawn With God
+# Prompt tạo script_beat.csv cho Dawn With God
 
 ## Vai trò
 

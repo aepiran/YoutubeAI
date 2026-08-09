@@ -1,0 +1,9 @@
+cue,start,end,track,prayer_section,crossfade_in_seconds,crossfade_out_seconds,gain_db,target_music_lufs,notes
+C01,00:00.000,02:13.780,01_Valley_Sunset_Alejandro_Magana_Mixkit.mp3,Opening Pause and Thanksgiving,4,8,-17.5,-35.0,Gentle fade in beneath the intimate opening and keep the narration clear
+C02,02:05.780,04:31.560,02_Wedding_01_Francisco_Alvear_Mixkit.mp3,Gratitude and Fear Transition,8,8,-17.5,-34.0,Let the piano support gratitude without lifting above the voice
+C03,04:23.560,08:13.380,03_Vastness_Andrew_Ev_Mixkit.mp3,Fear Surrender and Healing Invitation,8,8,-21.5,-35.0,Keep this section restrained under diagnosis fear and vulnerable surrender
+C04,08:05.380,10:48.530,04_Tapis_Eugenio_Mininni_Mixkit.mp3,Physical Healing Prayer,8,8,-19.5,-34.0,Use a steady bed as the prayer moves through the body treatment and recovery
+C05,10:40.530,13:11.470,05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3,Emotional Healing and Grace,8,8,-20.2,-35.0,Leave extra space around the brokenhearted weakness and despair lines
+C06,13:03.470,16:53.290,03_Vastness_Andrew_Ev_Mixkit.mp3,Renewed Hope and Intercession,8,8,-20.5,-34.0,Return the main motif as hope rises and prayer expands to caregivers and the sick
+C07,16:45.290,20:11.140,06_Skyline_Eugenio_Mininni_Mixkit.mp3,Intercession and Faith Declaration,8,8,-23.0,-32.5,Allow a gentle lift into the declarations while keeping every word dominant
+C08,20:03.140,23:38.516,07_Rest_Now_Eugenio_Mininni_Mixkit.mp3,Rest Benediction and CTA,8,6,-17.0,-33.0,Set gain to -19 dB from 22:53.796 for the CTA and fade fully by the exact subtitle end
