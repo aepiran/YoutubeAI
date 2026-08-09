@@ -12,6 +12,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QProcess, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox, QTableWidgetItem
 
+from video_builder.config import default_config
+from video_builder.ui.settings_dialog import BuilderUiSettings, SettingsDialog
 from video_builder.ui.main_window import (
     MainWindow,
     build_timeline_health_tooltip,
@@ -279,6 +281,39 @@ class WorkflowUiTests(unittest.TestCase):
         arguments = start_detached.call_args.args[1]
         self.assertNotIn("--project", arguments)
 
+    def test_packaged_find_footage_uses_embedded_app_mode(self) -> None:
+        self.window.project_edit.setText("D:/projects/prayer")
+        with (
+            patch(
+                "video_builder.ui.main_window.sys.frozen",
+                True,
+                create=True,
+            ),
+            patch(
+                "video_builder.ui.main_window.sys.executable",
+                "D:/apps/FootageVideoBuilder/FootageVideoBuilder.exe",
+            ),
+            patch(
+                "video_builder.ui.main_window.QProcess.startDetached",
+                return_value=(True, 1234),
+            ) as start_detached,
+        ):
+            self.window.find_footage_btn.click()
+
+        program, arguments, working_directory = start_detached.call_args.args
+        self.assertEqual(
+            program,
+            "D:/apps/FootageVideoBuilder/FootageVideoBuilder.exe",
+        )
+        self.assertEqual(
+            arguments,
+            ["--stock-footage-app", "--project", "D:\\projects\\prayer"],
+        )
+        self.assertEqual(
+            Path(working_directory),
+            Path("D:/apps/FootageVideoBuilder"),
+        )
+
     def test_full_reanalysis_is_explicit_and_forces_cache_refresh(self) -> None:
         arguments = self.window._build_cli_arguments("analyze_force")
 
@@ -305,6 +340,56 @@ class WorkflowUiTests(unittest.TestCase):
         ):
             self.window._confirm_full_reanalysis()
             start_build.assert_called_once_with("analyze_force")
+
+    def test_analysis_prompt_uses_resume_start_cancel_labels(self) -> None:
+        class FakeMessageBox:
+            ButtonRole = QMessageBox.ButtonRole
+            click_label = "Start"
+            last = None
+
+            def __init__(self, _parent=None) -> None:
+                self.buttons = {}
+                self.default_button = None
+                FakeMessageBox.last = self
+
+            def setWindowTitle(self, title: str) -> None:
+                self.title = title
+
+            def setText(self, text: str) -> None:
+                self.text = text
+
+            def setInformativeText(self, text: str) -> None:
+                self.informative_text = text
+
+            def addButton(self, label: str, _role) -> str:
+                self.buttons[label] = label
+                return label
+
+            def setDefaultButton(self, button: str) -> None:
+                self.default_button = button
+
+            def exec(self) -> None:
+                return None
+
+            def clickedButton(self) -> str:
+                return self.buttons[self.click_label]
+
+            @staticmethod
+            def warning(*_args, **_kwargs) -> None:
+                return None
+
+        with (
+            patch("video_builder.ui.main_window.QMessageBox", FakeMessageBox),
+            patch.object(self.window, "_start_build") as start_build,
+        ):
+            self.window._prompt_analysis_action()
+
+        self.assertEqual(
+            list(FakeMessageBox.last.buttons),
+            ["Resume", "Start", "Cancel"],
+        )
+        self.assertEqual(FakeMessageBox.last.default_button, "Resume")
+        start_build.assert_called_once_with("analyze_force")
 
     def test_technical_details_are_open_by_default(self) -> None:
         self.assertFalse(self.window.stage_table.isHidden())
@@ -411,6 +496,49 @@ class WorkflowUiTests(unittest.TestCase):
             ],
             "16",
         )
+
+    def test_settings_can_delete_imported_capcut_template(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            library = Path(temporary) / "capcut_templates"
+            template = library / "DWG_Template"
+            template.mkdir(parents=True)
+            (template / "draft_content.json").write_text("{}", encoding="utf-8")
+
+            with patch.object(
+                SettingsDialog,
+                "_template_library_dir",
+                return_value=library,
+            ):
+                dialog = SettingsDialog(
+                    default_config(),
+                    BuilderUiSettings(capcut_template_dir=str(template)),
+                )
+                self.addCleanup(dialog.close)
+
+                with patch(
+                    "video_builder.ui.settings_dialog.QMessageBox.question",
+                    return_value=QMessageBox.StandardButton.Yes,
+                ):
+                    dialog._delete_capcut_template()
+
+            self.assertFalse(template.exists())
+            self.assertEqual(dialog._selected_template_path(), "")
+
+    def test_capcut_template_actions_are_icon_buttons_with_tooltips(self) -> None:
+        dialog = SettingsDialog(default_config(), BuilderUiSettings())
+        self.addCleanup(dialog.close)
+
+        buttons = [
+            (dialog.capcut_import_btn, "Import template"),
+            (dialog.capcut_delete_btn, "Xóa template"),
+            (dialog.capcut_apply_btn, "Apply mặc định"),
+        ]
+        for button, name in buttons:
+            with self.subTest(name=name):
+                self.assertEqual(button.accessibleName(), name)
+                self.assertEqual(button.text(), "")
+                self.assertFalse(button.icon().isNull())
+                self.assertTrue(button.toolTip())
 
     def test_beat_table_names_audio_and_footage_timelines(self) -> None:
         self.assertEqual(

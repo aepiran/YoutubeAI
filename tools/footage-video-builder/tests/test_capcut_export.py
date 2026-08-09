@@ -747,6 +747,113 @@ class CapCutMediaExportTests(unittest.TestCase):
             self.assertTrue(math.isclose(rows[0]["volume"], 10 ** (-17 / 20)))
             self.assertTrue(math.isclose(rows[1]["volume"], 10 ** (-20 / 20)))
 
+    def test_cue_sheet_music_exports_one_baked_background_file(self) -> None:
+        class FakeAudioClip:
+            def __init__(self, path: str = "") -> None:
+                self.path = path
+                self.duration = 30.0
+                self.volume = None
+                self.effects = []
+                self.start = None
+                self.closed = False
+
+            def subclipped(self, start: float, end: float):
+                self.subclip_range = (start, end)
+                return self
+
+            def with_volume_scaled(self, volume: float):
+                self.volume = volume
+                return self
+
+            def with_effects(self, effects: list):
+                self.effects = effects
+                return self
+
+            def with_start(self, start: float):
+                self.start = start
+                return self
+
+            def close(self) -> None:
+                self.closed = True
+
+        class FakeComposite:
+            instances = []
+
+            def __init__(self, clips: list) -> None:
+                self.clips = clips
+                self.duration = None
+                self.output = None
+                FakeComposite.instances.append(self)
+
+            def with_duration(self, duration: float):
+                self.duration = duration
+                return self
+
+            def write_audiofile(self, path: str, **_kwargs) -> None:
+                self.output = Path(path)
+                self.output.write_bytes(b"wav")
+
+            def close(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            track = root / "bed.mp3"
+            track.write_bytes(b"audio")
+            cue_rows = [
+                {
+                    "path": str(track),
+                    "timeline_start": 0.0,
+                    "source_start": 1.0,
+                    "duration": 5.0,
+                    "volume": 0.125,
+                    "fade_in": 1.0,
+                    "fade_out": 2.0,
+                },
+                {
+                    "path": str(track),
+                    "timeline_start": 5.0,
+                    "source_start": 0.0,
+                    "duration": 4.0,
+                    "volume": 0.25,
+                    "fade_in": 0.5,
+                    "fade_out": 0.5,
+                },
+            ]
+
+            with (
+                patch(
+                    "video_builder.capcut_export.package_builder.AudioFileClip",
+                    FakeAudioClip,
+                ),
+                patch(
+                    "video_builder.capcut_export.package_builder.CompositeAudioClip",
+                    FakeComposite,
+                ),
+            ):
+                rows = _export_background_music(
+                    root / "package",
+                    {"timeline": [{"timeline_start": 0.0, "timeline_end": 9.0}]},
+                    hook_music=None,
+                    body_music=None,
+                    cue_rows=cue_rows,
+                    total_duration=9.0,
+                )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["file"], "music/background_music.wav")
+        self.assertEqual(rows[0]["role"], "dwg_cue_mix")
+        self.assertEqual(rows[0]["timeline_start"], 0.0)
+        self.assertEqual(rows[0]["duration"], 9.0)
+        self.assertEqual(rows[0]["volume"], 1.0)
+        self.assertTrue(rows[0]["gain_baked_into_file"])
+        self.assertTrue(rows[0]["fades_baked_into_file"])
+        self.assertEqual(rows[0]["cue_count"], 2)
+        self.assertEqual(FakeComposite.instances[0].duration, 9.0)
+        self.assertEqual(len(FakeComposite.instances[0].clips), 2)
+        self.assertEqual(FakeComposite.instances[0].clips[0].volume, 0.125)
+        self.assertEqual(FakeComposite.instances[0].clips[1].start, 5.0)
+
     def test_body_music_repeats_after_hook_music_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

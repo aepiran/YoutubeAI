@@ -129,6 +129,11 @@ def run_cli(argv: list[str] | None = None) -> int:
 def main() -> int:
     configure_utf8_stdio()
     argv = sys.argv[1:]
+    if argv and argv[0] in {"--stock-footage-app", "--stock-worker"}:
+        from stock_footage_app import main as stock_footage_main
+
+        stock_argv = argv[1:] if argv[0] == "--stock-footage-app" else argv
+        return stock_footage_main(stock_argv)
     if not argv or argv == ["--ui"]:
         try:
             from video_builder.ui.bootstrap import run_app

@@ -9,7 +9,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from moviepy import AudioFileClip, afx
+from moviepy import AudioFileClip, CompositeAudioClip, afx
 
 from ..audio_mix import load_configured_music_rows
 from ..config import PipelineConfig
@@ -404,6 +404,84 @@ def _append_music_segments(
     return cursor
 
 
+def _export_cue_sheet_background_music(
+    output_dir: Path,
+    cue_rows: list[dict],
+    total_duration: float,
+) -> list[dict]:
+    music_dir = output_dir / "music"
+    music_dir.mkdir(parents=True, exist_ok=True)
+    destination = music_dir / "background_music.wav"
+    music_clips = []
+    opened_sources = []
+    try:
+        for row in cue_rows:
+            source_path = Path(str(row["path"])).resolve()
+            if not source_path.is_file():
+                raise FileNotFoundError(
+                    f"Khong tim thay file nhac nen: {source_path}"
+                )
+            source = AudioFileClip(str(source_path))
+            opened_sources.append(source)
+            source_start = float(row.get("source_start", 0.0))
+            duration = min(
+                float(row["duration"]),
+                max(0.0, float(source.duration) - source_start),
+            )
+            if duration <= 0:
+                raise ValueError(
+                    f"Cue nhac vuot ngoai thoi luong file: {source_path}"
+                )
+            clip = source.subclipped(source_start, source_start + duration)
+            clip = clip.with_volume_scaled(float(row.get("volume", 1.0)))
+            effects = []
+            fade_in = min(float(row.get("fade_in", 0.0)), duration)
+            fade_out = min(float(row.get("fade_out", 0.0)), duration)
+            if fade_in > 0:
+                effects.append(afx.AudioFadeIn(fade_in))
+            if fade_out > 0:
+                effects.append(afx.AudioFadeOut(fade_out))
+            if effects:
+                clip = clip.with_effects(effects)
+            music_clips.append(clip.with_start(float(row["timeline_start"])))
+        composite = CompositeAudioClip(music_clips).with_duration(total_duration)
+        try:
+            composite.write_audiofile(
+                str(destination),
+                fps=48_000,
+                codec="pcm_s16le",
+                logger=None,
+            )
+        finally:
+            composite.close()
+    finally:
+        for clip in music_clips:
+            clip.close()
+        for source in opened_sources:
+            source.close()
+    return [
+        {
+            "cue": "DWG_BACKGROUND_MUSIC",
+            "file": f"music/{destination.name}",
+            "name": destination.name,
+            "role": "dwg_cue_mix",
+            "timeline_start": 0.0,
+            "duration": round(total_duration, 6),
+            "source_start": 0.0,
+            "source_duration": round(total_duration, 6),
+            "gain_db": 0.0,
+            "volume": 1.0,
+            "fade_in": 0.0,
+            "fade_out": 0.0,
+            "target_music_lufs": None,
+            "notes": "Cue sheet rendered to one baked background music file",
+            "cue_count": len(cue_rows),
+            "fades_baked_into_file": True,
+            "gain_baked_into_file": True,
+        }
+    ]
+
+
 def _export_background_music(
     output_dir: Path,
     report: dict,
@@ -427,63 +505,9 @@ def _export_background_music(
             ("body", Path(str(row["path"])), bool(row.get("repeat", False)))
         )
     if cue_rows and hook_music is None and not body_music:
-        music_dir = output_dir / "music"
-        music_dir.mkdir(parents=True, exist_ok=True)
-        exported_rows = []
-        for index, row in enumerate(cue_rows, start=1):
-            source_path = Path(str(row["path"])).resolve()
-            if not source_path.is_file():
-                raise FileNotFoundError(
-                    f"Không tìm thấy file nhạc nền: {source_path}"
-                )
-            destination = (
-                music_dir / _safe_media_name(index, "dwg-cue", source_path)
-            ).with_suffix(".wav")
-            source_clip = AudioFileClip(str(source_path))
-            cue_clip = None
-            try:
-                source_start = float(row.get("source_start", 0.0))
-                duration = min(
-                    float(row["duration"]),
-                    max(0.0, float(source_clip.duration) - source_start),
-                )
-                if duration <= 0:
-                    raise ValueError(
-                        f"Cue nhạc vượt ngoài thời lượng file: {source_path}"
-                    )
-                cue_clip = source_clip.subclipped(
-                    source_start, source_start + duration
-                )
-                effects = []
-                fade_in = min(float(row.get("fade_in", 0.0)), duration)
-                fade_out = min(float(row.get("fade_out", 0.0)), duration)
-                if fade_in > 0:
-                    effects.append(afx.AudioFadeIn(fade_in))
-                if fade_out > 0:
-                    effects.append(afx.AudioFadeOut(fade_out))
-                if effects:
-                    cue_clip = cue_clip.with_effects(effects)
-                cue_clip.write_audiofile(
-                    str(destination),
-                    fps=48_000,
-                    codec="pcm_s16le",
-                    logger=None,
-                )
-            finally:
-                if cue_clip is not None:
-                    cue_clip.close()
-                source_clip.close()
-            item = dict(row)
-            item.pop("path", None)
-            item["file"] = f"music/{destination.name}"
-            item["source_start"] = 0.0
-            item["source_duration"] = round(duration, 6)
-            item["duration"] = round(duration, 6)
-            item["fade_in"] = 0.0
-            item["fade_out"] = 0.0
-            item["fades_baked_into_file"] = True
-            exported_rows.append(item)
-        return exported_rows
+        return _export_cue_sheet_background_music(
+            output_dir, cue_rows, total_duration
+        )
     if not requested:
         return []
     for _role, source, _repeat in requested:

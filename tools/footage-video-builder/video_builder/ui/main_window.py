@@ -1029,7 +1029,7 @@ class MainWindow(QMainWindow):
         self.start_btn = QPushButton("◆  Phân tích kịch bản")
         self.start_btn.setObjectName("PrimaryButton")
         self.start_btn.setMinimumWidth(220)
-        self.start_btn.clicked.connect(self._prompt_analysis_mode)
+        self.start_btn.clicked.connect(self._prompt_analysis_action)
         self.start_btn.setToolTip(
             "Chọn để tiếp tục phân tích (dùng cache) hoặc phân tích lại từ đầu."
         )
@@ -1221,25 +1221,32 @@ class MainWindow(QMainWindow):
 
     def _launch_footage_finder(self) -> None:
         """Open the standalone finder independently from the supplement workflow."""
-        fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
-        script_path = fetcher_root / "stock_footage_app.py"
-        if not script_path.is_file():
-            QMessageBox.warning(
-                self,
-                "Không tìm thấy Stock Footage Finder",
-                f"Thiếu ứng dụng tại:\n{script_path}",
-            )
-            return
+        if getattr(sys, "frozen", False):
+            program = sys.executable
+            arguments = ["--stock-footage-app"]
+            working_directory = str(Path(sys.executable).resolve().parent)
+        else:
+            fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
+            script_path = fetcher_root / "stock_footage_app.py"
+            if not script_path.is_file():
+                QMessageBox.warning(
+                    self,
+                    "Không tìm thấy Stock Footage Finder",
+                    f"Thiếu ứng dụng tại:\n{script_path}",
+                )
+                return
+            program = sys.executable
+            arguments = ["-u", str(script_path)]
+            working_directory = str(fetcher_root)
 
-        arguments = ["-u", str(script_path)]
         project_text = self.project_edit.text().strip()
         if project_text:
             arguments.extend(["--project", str(Path(project_text).expanduser())])
 
         result = QProcess.startDetached(
-            sys.executable,
+            program,
             arguments,
-            str(fetcher_root),
+            working_directory,
         )
         started = result[0] if isinstance(result, tuple) else bool(result)
         if not started:
@@ -1269,16 +1276,17 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Footage đã đủ", "Không có Beat nào cần tải bổ sung.")
             return
 
-        fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
-        if not (fetcher_root / "stock_footage_app.py").is_file() and not (
-            fetcher_root / "pyproject.toml"
-        ).is_file():
-            QMessageBox.warning(
-                self,
-                "Không tìm thấy Stock Footage Finder",
-                f"Thiếu downloader tại:\n{fetcher_root}",
-            )
-            return
+        if getattr(sys, "frozen", False):
+            fetcher_root = Path(sys.executable).resolve().parent
+        else:
+            fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
+            if not (fetcher_root / "stock_footage_app.py").is_file():
+                QMessageBox.warning(
+                    self,
+                    "Không tìm thấy Stock Footage Finder",
+                    f"Thiếu downloader tại:\n{fetcher_root}",
+                )
+                return
 
         answer = QMessageBox.question(
             self,
@@ -1299,9 +1307,12 @@ class MainWindow(QMainWindow):
         environment = QProcessEnvironment.systemEnvironment()
         environment.insert("PYTHONUNBUFFERED", "1")
         self.footage_process.setProcessEnvironment(environment)
-        script_path = fetcher_root / "stock_footage_app.py"
         program = sys.executable
-        arguments = ["-u", str(script_path), "--project", str(plan_file)]
+        if getattr(sys, "frozen", False):
+            arguments = ["--stock-footage-app", "--project", str(plan_file)]
+        else:
+            script_path = fetcher_root / "stock_footage_app.py"
+            arguments = ["-u", str(script_path), "--project", str(plan_file)]
         self.footage_process.setWorkingDirectory(str(fetcher_root))
 
         self._running = True
@@ -3269,25 +3280,38 @@ class MainWindow(QMainWindow):
         self.process.setWorkingDirectory(working_directory)
         self.process.start(program, process_arguments)
 
-    def _prompt_analysis_mode(self) -> None:
+    def _prompt_analysis_action(self) -> None:
         if self._running:
             QMessageBox.warning(
-                self, "Tác vụ đang chạy", "Một tác vụ khác đang chạy. Vui lòng đợi."
+                self,
+                "Tác vụ đang chạy",
+                "Một tác vụ khác đang chạy. Vui lòng đợi.",
             )
             return
-        answer = QMessageBox.question(
-            self,
-            "Chế độ phân tích",
-            "Bạn muốn tiếp tục phân tích (dùng cache) hay phân tích lại từ đầu (bỏ qua cache)?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Chế độ phân tích")
+        dialog.setText("Bạn muốn phân tích theo cách nào?")
+        dialog.setInformativeText(
+            "Resume: tiếp tục và dùng cache hiện có.\n"
+            "Start: phân tích lại từ đầu và bỏ qua cache."
         )
-        if answer == QMessageBox.StandardButton.Yes:
+        resume_button = dialog.addButton(
+            "Resume", QMessageBox.ButtonRole.AcceptRole
+        )
+        start_button = dialog.addButton(
+            "Start", QMessageBox.ButtonRole.DestructiveRole
+        )
+        dialog.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(resume_button)
+        dialog.exec()
+        clicked = dialog.clickedButton()
+        if clicked == resume_button:
             self._start_build("analyze")
-        elif answer == QMessageBox.StandardButton.No:
+        elif clicked == start_button:
             self._start_build("analyze_force")
-        # If Cancel, do nothing
 
+    def _prompt_analysis_mode(self) -> None:
+        self._prompt_analysis_action()
 
     def _confirm_full_reanalysis(self) -> None:
         answer = QMessageBox.question(
