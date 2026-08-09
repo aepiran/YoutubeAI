@@ -25,6 +25,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 from PIL import Image
 
+from footage_library import FootageLibrary
 from stock_fetcher_core import (
     DEFAULT_MODEL,
     DEFAULT_MODEL_CACHE,
@@ -113,6 +114,9 @@ class Candidate:
     semantic_score: float = -math.inf
     final_score: float = -math.inf
     visual_hash: str = ""
+    origin: str = "online"
+    local_path: str = ""
+    asset_id: str = ""
 
     @property
     def key(self) -> str:
@@ -266,6 +270,53 @@ class Provider:
         min_duration: float,
     ) -> list[Candidate]:
         raise NotImplementedError
+
+
+class LocalLibraryProvider:
+    """Expose catalog assets through the same Candidate contract as APIs."""
+
+    name = "library"
+
+    def __init__(self, library: FootageLibrary) -> None:
+        self.library = library
+
+    def search(
+        self,
+        query: str,
+        *,
+        max_pages: int,
+        per_page: int,
+        min_width: int,
+        min_height: int,
+        min_duration: float,
+    ) -> list[Candidate]:
+        rows = self.library.search(
+            query,
+            min_width=min_width,
+            min_height=min_height,
+            min_duration=min_duration,
+            limit=max_pages * per_page,
+        )
+        return [
+            Candidate(
+                provider=str(row["provider"]),
+                video_id=str(row["video_id"]),
+                page_url=str(row["page_url"] or ""),
+                download_url=str(row["canonical_path"]),
+                preview_url=str(row["preview_path"]),
+                width=int(row["width"] or 0),
+                height=int(row["height"] or 0),
+                duration=float(row["duration"] or 0),
+                contributor=str(row["contributor"] or ""),
+                tags=str(row["tags"] or ""),
+                query=query,
+                visual_hash=str(row["visual_hash"] or ""),
+                origin="library",
+                local_path=str(row["canonical_path"]),
+                asset_id=str(row["asset_id"]),
+            )
+            for row in rows
+        ]
 
 
 def _best_pexels_file(video: dict, min_width: int, min_height: int) -> dict | None:
@@ -564,13 +615,16 @@ def fetch_visual_hash(candidate: Candidate, session: requests.Session) -> str:
     if candidate.visual_hash or not candidate.preview_url:
         return candidate.visual_hash
     try:
-        response = session.get(candidate.preview_url, timeout=20)
-        response.raise_for_status()
-        from io import BytesIO
+        preview_path = Path(candidate.preview_url).expanduser()
+        if preview_path.is_file():
+            image = Image.open(preview_path).convert("RGB")
+        else:
+            response = session.get(candidate.preview_url, timeout=20)
+            response.raise_for_status()
+            from io import BytesIO
 
-        candidate.visual_hash = difference_hash(
-            Image.open(BytesIO(response.content)).convert("RGB")
-        )
+            image = Image.open(BytesIO(response.content)).convert("RGB")
+        candidate.visual_hash = difference_hash(image)
     except (requests.RequestException, OSError, ValueError):
         candidate.visual_hash = ""
     return candidate.visual_hash
@@ -679,6 +733,7 @@ def download_candidate(
     selection: Selection,
     output_dir: Path,
     session: requests.Session,
+    library: FootageLibrary | None = None,
 ) -> Path:
     candidate = selection.candidate
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -690,6 +745,13 @@ def download_candidate(
     if destination.is_file() and destination.stat().st_size > 0:
         selection.filename = filename
         selection.status = "downloaded"
+        return destination
+    if candidate.origin == "library" and candidate.local_path:
+        if library is None:
+            raise RuntimeError("local footage requires a configured library")
+        library.materialize(Path(candidate.local_path), destination)
+        selection.filename = filename
+        selection.status = "reused"
         return destination
     url = (
         add_download_parameter(candidate.download_url)
@@ -771,7 +833,7 @@ def output_inventory(output_dir: Path) -> tuple[dict[str, int], list[dict[str, s
     if not output_dir.is_dir():
         return counts, registry_rows
     pattern = re.compile(
-        r"^(?P<beat>[A-Za-z]+\d+)_(?P<provider>PEXELS|PIXABAY)_"
+        r"^(?P<beat>[A-Za-z]+\d+)_(?P<provider>[A-Za-z][A-Za-z0-9-]*)_"
         r"(?P<video_id>[^._]+)",
         re.IGNORECASE,
     )
@@ -814,7 +876,8 @@ def save_manifest(
 
     csv_manifest = path.with_suffix(".csv")
     fieldnames = [
-        "beat_id", "rank", "provider", "video_id", "query", "semantic_score",
+        "beat_id", "rank", "origin", "asset_id", "provider", "video_id",
+        "query", "semantic_score",
         "final_score", "width", "height", "duration", "contributor", "page_url",
         "filename", "status", "error",
     ]
@@ -832,6 +895,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--csv", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--library-dir", type=Path)
+    parser.add_argument("--no-local-library", action="store_true")
+    parser.add_argument("--no-auto-archive", action="store_true")
     parser.add_argument(
         "--providers", default="pexels,pixabay",
         help="Comma-separated providers: pexels,pixabay",
@@ -877,6 +943,13 @@ def resolve_paths(args: argparse.Namespace) -> None:
         args.manifest or project / "selected-footage.json"
     ).expanduser().resolve()
     args.cache_dir = project / ".cache" / "stock-search"
+    default_library = Path(
+        os.environ.get(
+            "FOOTAGE_LIBRARY_DIR",
+            str(ROOT_DIR / "FootageLibrary"),
+        )
+    )
+    args.library_dir = (args.library_dir or default_library).expanduser().resolve()
 
 
 def validate_args(args: argparse.Namespace) -> list[str]:
@@ -946,7 +1019,13 @@ def main(argv: Iterable[str] | None = None) -> int:
     rows = load_rows(args.csv)
     cache = JsonCache(args.cache_dir, int(args.cache_ttl_hours * 3600))
     providers = make_providers(provider_names, args, cache)
+    library = None if args.no_local_library else FootageLibrary(args.library_dir)
 
+    manifest_paths = [
+        args.project_dir / "selected-footage.json",
+        args.project_dir / ".cache" / "stock-footage-supplement.json",
+        args.manifest,
+    ]
     prior_all = [] if args.force else load_manifest(args.manifest)
     project_manifest = args.project_dir / "selected-footage.json"
     catalog_prior = (
@@ -959,13 +1038,18 @@ def main(argv: Iterable[str] | None = None) -> int:
     prior: list[dict[str, Any]] = []
     completed_by_beat: dict[str, list[dict[str, Any]]] = {}
     for item in prior_all:
-        if item.get("status") == "downloaded" and item.get("filename"):
+        if item.get("status") in {"downloaded", "reused"} and item.get("filename"):
             file_path = args.output_dir / str(item["filename"])
             if file_path.is_file() and file_path.stat().st_size > 0:
                 prior.append(item)
                 completed_by_beat.setdefault(str(item.get("beat_id")), []).append(item)
 
     inventory_counts, inventory_registry = output_inventory(args.output_dir)
+    unavailable_keys = {
+        f"{item.get('provider')}:{item.get('video_id')}"
+        for item in [*prior, *catalog_prior, *inventory_registry]
+        if item.get("provider") and item.get("video_id")
+    }
     rows_to_search = [
         row for row in rows
         if inventory_counts.get(row["ma_beat"], 0)
@@ -981,12 +1065,57 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     scorer = VisualScorer(args.model, requests.Session(), args.model_cache_dir)
     score_lock = Lock()
+    local_provider = LocalLibraryProvider(library) if library is not None else None
 
     def search_one(row: dict[str, str]) -> tuple[str, list[Candidate], str]:
-        all_candidates: list[Candidate] = []
+        local_candidates: list[Candidate] = []
+        online_candidates: list[Candidate] = []
         errors: list[str] = []
         queries = row_queries(row, args.max_queries)
         minimum_duration = row_min_duration(row, args.min_duration)
+        needed = max(
+            0,
+            row_target_file_count(row, args.clips_per_beat)
+            - inventory_counts.get(row["ma_beat"], 0),
+        )
+        if local_provider is not None:
+            for query in queries:
+                try:
+                    local_candidates.extend(
+                        local_provider.search(
+                            query,
+                            max_pages=1,
+                            per_page=args.candidate_pool,
+                            min_width=args.min_width,
+                            min_height=args.min_height,
+                            min_duration=minimum_duration,
+                        )
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    errors.append(f"library: {exc}")
+        local_pool = [
+            candidate
+            for candidate in balanced_candidate_pool(
+                local_candidates, args.candidate_pool
+            )
+            if candidate.key not in unavailable_keys
+        ]
+        with score_lock:
+            local_ranked = (
+                score_candidates(scorer, local_pool, row, minimum_duration)
+                if local_pool
+                else []
+            )
+        local_ranked = [
+            item for item in local_ranked if item.final_score >= args.min_score
+        ]
+        if len(local_ranked) >= needed:
+            return (
+                row["ma_beat"],
+                local_ranked,
+                f"library satisfied {len(local_ranked)}/{needed}",
+            )
+
         for query in queries:
             for provider in providers:
                 try:
@@ -998,13 +1127,22 @@ def main(argv: Iterable[str] | None = None) -> int:
                         min_height=args.min_height,
                         min_duration=minimum_duration,
                     )
-                    all_candidates.extend(found)
+                    online_candidates.extend(found)
                 except (requests.RequestException, RuntimeError, ValueError) as exc:
                     errors.append(f"{provider.name}: {exc}")
-        pool = balanced_candidate_pool(all_candidates, args.candidate_pool)
+        pool = balanced_candidate_pool(online_candidates, args.candidate_pool)
         with score_lock:
-            ranked = score_candidates(scorer, pool, row, minimum_duration) if pool else []
-        ranked = [item for item in ranked if item.final_score >= args.min_score]
+            online_ranked = (
+                score_candidates(scorer, pool, row, minimum_duration) if pool else []
+            )
+        ranked = [
+            item
+            for item in [*local_ranked, *online_ranked]
+            if item.final_score >= args.min_score
+        ]
+        ranked.sort(key=lambda item: item.final_score, reverse=True)
+        if local_ranked:
+            errors.append(f"library supplied {len(local_ranked)}/{needed}")
         return row["ma_beat"], ranked, "; ".join(errors)
 
     ranked_by_beat: dict[str, list[Candidate]] = {}
@@ -1039,14 +1177,26 @@ def main(argv: Iterable[str] | None = None) -> int:
             print(f"{beat_id}: resume, already has {existing_count} files")
             continue
         ranked = ranked_by_beat.get(beat_id, [])
+        local_ranked = [item for item in ranked if item.origin == "library"]
+        online_ranked = [item for item in ranked if item.origin != "library"]
         chosen = select_candidates(
-            ranked,
+            local_ranked,
             registry,
             count=needed,
             session=selection_session,
             hash_shortlist=args.shortlist,
-            provider_limits={"pixabay": args.max_pixabay_downloads},
         )
+        if len(chosen) < needed:
+            chosen.extend(
+                select_candidates(
+                    online_ranked,
+                    registry,
+                    count=needed - len(chosen),
+                    session=selection_session,
+                    hash_shortlist=args.shortlist,
+                    provider_limits={"pixabay": args.max_pixabay_downloads},
+                )
+            )
         if not chosen:
             print(f"{beat_id}: no suitable candidate; {errors_by_beat.get(beat_id, '')}")
             continue
@@ -1061,9 +1211,18 @@ def main(argv: Iterable[str] | None = None) -> int:
             else:
                 try:
                     destination = download_candidate(
-                        selection, args.output_dir, download_session
+                        selection, args.output_dir, download_session, library
                     )
-                    print(f"{beat_id}: downloaded {destination.name}")
+                    action = "reused" if selection.status == "reused" else "downloaded"
+                    print(f"{beat_id}: {action} {destination.name}")
+                    if library is not None and candidate.asset_id:
+                        library.record_candidate_usage(
+                            candidate.asset_id,
+                            args.project_dir,
+                            beat_id=beat_id,
+                            query=candidate.query,
+                            semantic_score=candidate.semantic_score,
+                        )
                 except (requests.RequestException, RuntimeError, OSError) as exc:
                     selection.status = "failed"
                     selection.error = str(exc)
@@ -1072,11 +1231,43 @@ def main(argv: Iterable[str] | None = None) -> int:
             save_manifest(args.manifest, selections, csv_path=args.csv)
 
     save_manifest(args.manifest, selections, csv_path=args.csv)
+    if library is not None and not args.no_auto_archive and not args.dry_run:
+        downloaded_filenames = [
+            item.filename
+            for item in selections
+            if isinstance(item, Selection)
+            and item.status == "downloaded"
+            and item.candidate.origin != "library"
+        ]
+        archived = library.archive_project(
+            args.project_dir,
+            output_dir=args.output_dir,
+            manifest_paths=manifest_paths,
+            filenames=downloaded_filenames,
+        )
+        print(
+            "Library storage: "
+            f"{archived.imported} imported, {archived.duplicates} duplicates, "
+            f"{archived.linked} hard-linked, {archived.failed} failed."
+        )
+        for item in selections:
+            filename = (
+                item.filename if isinstance(item, Selection)
+                else str(item.get("filename") or "")
+            )
+            asset_id = archived.asset_ids.get(filename)
+            if not asset_id:
+                continue
+            if isinstance(item, Selection):
+                item.candidate.asset_id = asset_id
+            else:
+                item["asset_id"] = asset_id
+        save_manifest(args.manifest, selections, csv_path=args.csv)
     downloaded = sum(
         1
         for item in selections
         if (item.status if isinstance(item, Selection) else item.get("status"))
-        == "downloaded"
+        in {"downloaded", "reused"}
     )
     print(f"Complete: {downloaded} downloaded files. Manifest: {args.manifest}")
     return 0

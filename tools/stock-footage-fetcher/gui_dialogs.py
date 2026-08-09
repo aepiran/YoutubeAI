@@ -10,12 +10,14 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -51,6 +53,7 @@ class SettingsDialog(QDialog):
 
         tabs = QTabWidget()
         tabs.addTab(self._build_sources_tab(pexels_key, pixabay_key), "Nguồn & API")
+        tabs.addTab(self._build_library_tab(settings), "Kho footage")
         tabs.addTab(self._build_search_tab(settings), "Tìm kiếm")
         tabs.addTab(self._build_quality_tab(settings), "Chất lượng")
         root.addWidget(tabs, 1)
@@ -125,6 +128,68 @@ class SettingsDialog(QDialog):
         layout.addWidget(note)
         layout.addStretch(1)
         return page
+
+    def _build_library_tab(self, settings: GuiSettings) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        box = QGroupBox("Kho footage tổng")
+        box_layout = QVBoxLayout(box)
+        self.local_library_check = QCheckBox(
+            "Tìm trong kho local trước khi gọi Pexels/Pixabay"
+        )
+        self.local_library_check.setChecked(settings.use_local_library)
+        self.auto_archive_check = QCheckBox(
+            "Tự động lưu footage mới tải online vào kho tổng"
+        )
+        self.auto_archive_check.setChecked(settings.auto_archive_library)
+        path_row = QHBoxLayout()
+        self.library_dir_edit = QLineEdit(settings.library_dir)
+        self.library_dir_edit.setPlaceholderText("Thư mục FootageLibrary")
+        choose_button = QPushButton("Chọn thư mục")
+        choose_button.clicked.connect(self._choose_library_dir)
+        path_row.addWidget(self.library_dir_edit, 1)
+        path_row.addWidget(choose_button)
+        cache_row = QHBoxLayout()
+        self.model_cache_dir_edit = QLineEdit(settings.model_cache_dir)
+        self.model_cache_dir_edit.setPlaceholderText("Thu muc cache model HuggingFace")
+        cache_button = QPushButton("Chon cache")
+        cache_button.clicked.connect(self._choose_model_cache_dir)
+        cache_row.addWidget(self.model_cache_dir_edit, 1)
+        cache_row.addWidget(cache_button)
+        box_layout.addWidget(self.local_library_check)
+        box_layout.addWidget(self.auto_archive_check)
+        box_layout.addWidget(QLabel("Kho footage"))
+        box_layout.addLayout(path_row)
+        box_layout.addWidget(QLabel("Model cache"))
+        box_layout.addLayout(cache_row)
+        layout.addWidget(box)
+        note = QLabel(
+            "Kho hoạt động như một nguồn footage local. Các file sẵn có trong "
+            "project không bị tự động di chuyển; toàn bộ workflow còn lại giữ nguyên."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet(MUTED_LABEL_STYLE)
+        layout.addWidget(note)
+        layout.addStretch(1)
+        return page
+
+    def _choose_library_dir(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Chọn kho footage tổng",
+            self.library_dir_edit.text().strip(),
+        )
+        if selected:
+            self.library_dir_edit.setText(selected)
+
+    def _choose_model_cache_dir(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Chon cache model",
+            self.model_cache_dir_edit.text().strip(),
+        )
+        if selected:
+            self.model_cache_dir_edit.setText(selected)
 
     def _build_search_tab(self, settings: GuiSettings) -> QWidget:
         page = QWidget()
@@ -206,6 +271,10 @@ class SettingsDialog(QDialog):
             min_height=self.min_height_spin.value(),
             max_pixabay_downloads=self.pixabay_cap_spin.value(),
             dry_run=self.dry_run_check.isChecked(),
+            use_local_library=self.local_library_check.isChecked(),
+            auto_archive_library=self.auto_archive_check.isChecked(),
+            library_dir=self.library_dir_edit.text().strip(),
+            model_cache_dir=self.model_cache_dir_edit.text().strip(),
         )
         return (
             settings,
@@ -215,6 +284,11 @@ class SettingsDialog(QDialog):
 
     def accept(self) -> None:
         settings, pexels, pixabay = self.values()
+        if settings.use_local_library and not settings.library_dir:
+            QMessageBox.warning(
+                self, "Thiếu kho footage", "Hãy chọn thư mục kho footage tổng."
+            )
+            return
         if not settings.use_pexels and not settings.use_pixabay:
             QMessageBox.warning(self, "Thiếu nguồn", "Hãy bật Pexels hoặc Pixabay.")
             return

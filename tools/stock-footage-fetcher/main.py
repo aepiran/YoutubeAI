@@ -175,6 +175,12 @@ class VisualScorer:
             url = pictures[0].get("picture") if pictures else None
         if not url:
             return None
+        local_path = Path(str(url)).expanduser()
+        if local_path.is_file():
+            try:
+                return Image.open(local_path).convert("RGB")
+            except (OSError, ValueError):
+                return None
         try:
             response = self.session.get(url, timeout=20)
             response.raise_for_status()

@@ -71,8 +71,13 @@ class WorkerRunner(QObject):
             "--min-width", str(settings.min_width),
             "--min-height", str(settings.min_height),
             "--max-pixabay-downloads", str(settings.max_pixabay_downloads),
-            "--model-cache-dir", str(model_cache_dir()),
+            "--model-cache-dir", str(model_cache_dir(settings)),
+            "--library-dir", settings.library_dir,
         ]
+        if not settings.use_local_library:
+            args.append("--no-local-library")
+        if not settings.auto_archive_library:
+            args.append("--no-auto-archive")
         if settings.dry_run:
             args.append("--dry-run")
         if force:
@@ -82,6 +87,7 @@ class WorkerRunner(QObject):
         environment.insert("PYTHONIOENCODING", "utf-8")
         environment.insert("PYTHONUNBUFFERED", "1")
         environment.insert("HF_HUB_DISABLE_TELEMETRY", "1")
+        environment.insert("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
         environment.insert("PEXELS_API_KEY", pexels_key)
         environment.insert("PIXABAY_API_KEY", pixabay_key)
         self.process.setProcessEnvironment(environment)
@@ -125,6 +131,7 @@ class WorkerRunner(QObject):
         patterns = [
             (r"^([A-Za-z]+\d+): ranked (\d+) candidates", lambda m: f"Ranked {m.group(2)}"),
             (r"^([A-Za-z]+\d+): downloaded (.+)$", lambda m: "Downloaded"),
+            (r"^([A-Za-z]+\d+): reused (.+)$", lambda m: "Reused"),
             (r"^([A-Za-z]+\d+): download failed", lambda m: "Download error"),
             (r"^([A-Za-z]+\d+): no suitable candidate", lambda m: "No result"),
             (r"^([A-Za-z]+\d+): resume", lambda m: "Resumed"),
