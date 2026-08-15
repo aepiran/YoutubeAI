@@ -43,6 +43,7 @@ def run_pipeline(
     *,
     skip_whisper: bool = False,
     analyze_only: bool = False,
+    analysis_stage: str | None = None,
     force_analysis: bool = False,
     render_only: bool = False,
     render_sections: set[int] | None = None,
@@ -132,6 +133,9 @@ def run_pipeline(
                 f"{voice['end']:.2f}s ({voice['duration']:.2f}s)"
             )
         _stage_end("INPUT")
+        if analysis_stage == "input":
+            print("Analysis stage complete: input.")
+            return
         if force_analysis and not render_only:
             print("Force analysis: bo qua cache ket qua, phan tich lai tu dau.")
         if render_only:
@@ -189,6 +193,20 @@ def run_pipeline(
                     temporary_report.unlink(missing_ok=True)
             print(f"Video đã sẵn sàng: {config.output_file}")
             _stage_end("OUTPUT")
+            return
+
+        if analysis_stage == "footage":
+            _stage_start("SHOT")
+            candidates, rejected, _model, _processor, _device = analyze_footage(
+                config,
+                video_files,
+                force_refresh=force_analysis,
+            )
+            _stage_end("SHOT")
+            print(
+                "Analysis stage complete: footage "
+                f"({len(candidates)} accepted, {len(rejected)} rejected)."
+            )
             return
 
         _stage_start("ALIGN")
@@ -310,6 +328,9 @@ def run_pipeline(
                 f"{segment.text}"
             )
         _stage_end("CUT")
+        if analysis_stage == "timing":
+            print("Analysis stage complete: timing.")
+            return
 
         _stage_start("SHOT")
         candidates, rejected, model, processor, device = analyze_footage(
@@ -377,7 +398,9 @@ def run_pipeline(
                 f"[{candidate.start:.2f}-{candidate.end:.2f}s], "
                 f"score={score:.3f}"
             )
-        if analyze_only:
+        if analysis_stage == "match":
+            print("Analysis stage complete: match.")
+        elif analyze_only:
             print("Chế độ chỉ phân tích: bỏ qua bước xuất Video.")
         else:
             _stage_start("LOOK")

@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialogButtonBox,
     QDialog,
+    QCheckBox,
     QFileDialog,
     QFileIconProvider,
     QFormLayout,
@@ -468,6 +469,13 @@ PIPELINE_STAGE_INDEXES = {
     code: index for index, (code, _description) in enumerate(PIPELINE_STAGES)
 }
 
+ANALYSIS_STAGE_MODES = {
+    "stage_input": ("input", "Kiểm tra dữ liệu", {0}),
+    "stage_timing": ("timing", "Phân tích timing", {0, 1, 2}),
+    "stage_footage": ("footage", "Phân tích footage", {0, 3}),
+    "stage_match": ("match", "Ghép footage với beat", {0, 1, 2, 3, 4, 5}),
+}
+
 
 STATUS_STYLE = {
     "waiting": ("Đang chờ", "#1d2a3d", "#9aa7bd"),
@@ -486,6 +494,12 @@ def completion_popup_content(mode: str, destination: str = "") -> tuple[str, str
         return (
             "Phân tích hoàn tất",
             f"Đã phân tích xong {scope} và cập nhật Timeline.",
+        )
+    if mode in ANALYSIS_STAGE_MODES:
+        _stage_value, label, _done_rows = ANALYSIS_STAGE_MODES[mode]
+        return (
+            "Giai đoạn hoàn tất",
+            f"Đã chạy xong: {label}.",
         )
     if mode == "render":
         return (
@@ -1012,6 +1026,38 @@ class MainWindow(QMainWindow):
             "⌄  Nhật ký kỹ thuật" if expanded else "›  Nhật ký kỹ thuật"
         )
 
+    def _build_analysis_stage_checkboxes(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        title = QLabel("Giai đoạn phân tích:")
+        title.setStyleSheet("color:#cbd5e1; font-weight:700;")
+        row.addWidget(title)
+        actions = [
+            ("1. Kiểm tra dữ liệu", "stage_input", "Chỉ kiểm tra input project, không chạy model."),
+            ("2. Phân tích timing", "stage_timing", "Align voice/script và ghi vfootage_alignment.json."),
+            ("3. Phân tích footage", "stage_footage", "Quét scene, chấm chất lượng và lưu cache footage."),
+            ("4. Ghép footage với beat", "stage_match", "Dùng cache để chọn footage và ghi timeline report."),
+        ]
+        self.analysis_stage_checks = {}
+        for label, mode, tooltip in actions:
+            checkbox = QCheckBox(label)
+            checkbox.setToolTip(tooltip)
+            checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+            checkbox.clicked.connect(
+                lambda _checked=False, selected_mode=mode: (
+                    self._run_analysis_stage_from_checkbox(selected_mode)
+                )
+            )
+            row.addWidget(checkbox)
+            self.analysis_stage_checks[mode] = checkbox
+        row.addStretch(1)
+        self._refresh_analysis_stage_checkboxes()
+        return row
+
+    def _run_analysis_stage_from_checkbox(self, mode: str) -> None:
+        self._start_build(mode)
+        self._refresh_analysis_stage_checkboxes()
+
     def _build_run_monitor(self) -> QFrame:
         frame = QFrame()
         frame.setObjectName("RunMonitor")
@@ -1024,6 +1070,7 @@ class MainWindow(QMainWindow):
         title_row.addWidget(title)
         title_row.addStretch(1)
         layout.addLayout(title_row)
+        layout.addLayout(self._build_analysis_stage_checkboxes())
 
         action_row = QHBoxLayout()
         self.start_btn = QPushButton("◆  Phân tích kịch bản")
@@ -3148,6 +3195,9 @@ class MainWindow(QMainWindow):
             arguments.append("--no-model-download")
 
         # --- Mode-specific Arguments ---
+        if mode in ANALYSIS_STAGE_MODES:
+            stage_value, _label, _done_rows = ANALYSIS_STAGE_MODES[mode]
+            arguments.extend(["--analysis-stage", stage_value])
         if mode in {"analyze", "analyze_force"}:
             arguments.append("--analyze-only")
         if mode == "analyze_force":
@@ -3237,7 +3287,10 @@ class MainWindow(QMainWindow):
         self._save_settings()
         self._run_mode = mode
         if hasattr(self, "job_scope_label"):
-            if mode in {"analyze", "analyze_force"}:
+            if mode in ANALYSIS_STAGE_MODES:
+                _stage_value, label, _done_rows = ANALYSIS_STAGE_MODES[mode]
+                self.job_scope_label.setText(label)
+            elif mode in {"analyze", "analyze_force"}:
                 self.job_scope_label.setText(
                     "Phân tích lại toàn bộ từ đầu"
                     if mode == "analyze_force"
@@ -3343,7 +3396,7 @@ class MainWindow(QMainWindow):
     def _on_process_started(self) -> None:
         self._running = True
         if self._run_mode in {
-            "analyze", "analyze_force", "analyze_section"
+            "analyze", "analyze_force", "analyze_section", "stage_match"
         }:
             for code in self._beat_rows:
                 self._set_beat_status(
@@ -3579,6 +3632,7 @@ class MainWindow(QMainWindow):
         success = exit_code == 0 and not was_stopped
         if success:
             section_preview = self._run_mode == "analyze_section"
+            stage_mode = self._run_mode in ANALYSIS_STAGE_MODES
             analyze_only = self._run_mode in {
                 "analyze", "analyze_force", "analyze_section"
             }
@@ -3590,6 +3644,15 @@ class MainWindow(QMainWindow):
                     self._set_stage_status(
                         row,
                         "skipped" if row in (6, 7) else "done",
+                    )
+            elif stage_mode:
+                _stage_value, _label, done_rows = ANALYSIS_STAGE_MODES[
+                    self._run_mode
+                ]
+                for row in range(len(PIPELINE_STAGES)):
+                    self._set_stage_status(
+                        row,
+                        "done" if row in done_rows else "skipped",
                     )
             elif export_scenes or export_capcut:
                 for row, previous in enumerate(self._statuses_before_run):
@@ -3722,10 +3785,34 @@ class MainWindow(QMainWindow):
     def _set_running_ui_state(self, running: bool) -> None:
         self._running = running
         self.start_btn.setEnabled(not running)
+        if hasattr(self, "analysis_stage_checks"):
+            for checkbox in self.analysis_stage_checks.values():
+                checkbox.setEnabled(not running)
         self.supplement_btn.setEnabled(not running)
         self.export_btn.setEnabled(not running)
         self.refresh_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
+
+    def _refresh_analysis_stage_checkboxes(self) -> None:
+        if not hasattr(self, "analysis_stage_checks"):
+            return
+        for mode, checkbox in self.analysis_stage_checks.items():
+            _stage_value, _label, done_rows = ANALYSIS_STAGE_MODES[mode]
+            statuses = [self._stage_statuses[row] for row in done_rows]
+            running = any(status == "running" for status in statuses)
+            done = all(status == "done" for status in statuses)
+            checkbox.setChecked(done)
+            if done:
+                checkbox.setStyleSheet(
+                    "QCheckBox { color:#86efac; font-weight:700; }"
+                    "QCheckBox::indicator:checked { background:#14532d; }"
+                )
+            elif running:
+                checkbox.setStyleSheet(
+                    "QCheckBox { color:#c4b5fd; font-weight:700; }"
+                )
+            else:
+                checkbox.setStyleSheet("QCheckBox { color:#9aa7bd; }")
 
     def _set_stage_status(self, row: int, status: str) -> None:
         previous_status = self._stage_statuses[row]
@@ -3755,6 +3842,7 @@ class MainWindow(QMainWindow):
         item.setForeground(QColor(foreground))
         self.stage_table.setItem(row, 2, item)
         self._refresh_stage_time(row)
+        self._refresh_analysis_stage_checkboxes()
 
     def _reset_stage_times(self) -> None:
         self._stage_started_at = [None] * len(PIPELINE_STAGES)

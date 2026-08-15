@@ -1,0 +1,12 @@
+cue,start,end,track,prayer_section,crossfade_in_seconds,crossfade_out_seconds,gain_db,target_music_lufs,notes
+C01,00:00.000,01:37.920,01_Valley_Sunset_Alejandro_Magana_Mixkit.mp3,Pause and Hook,4,8,-18.0,-35.0,Sparse fade in under the accusing inner voice; keep it very low and still
+C02,01:29.920,02:57.450,02_Wedding_01_Francisco_Alvear_Mixkit.mp3,Mercy and Lamentations Scripture,8,8,-18.0,-34.5,Warm slightly as new mercy is introduced; piano must stay behind the verse
+C03,02:49.450,04:29.220,05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3,Psalm 143 Love First Reflection,8,8,-20.5,-35.0,"Hold a contemplative bed while love, direction, and trust are explained"
+C04,04:21.220,07:05.970,03_Vastness_Andrew_Ev_Mixkit.mp3,Gratitude and Worship,8,8,-21.0,-34.5,Open the space gently for unseen protection and Fatherly goodness
+C05,06:57.970,09:17.616,04_Tapis_Eugenio_Mininni_Mixkit.mp3,Confession and Surrender,8,8,-20.0,-35.0,Keep the bed steady and humble under confession; no emotional swell
+C06,09:09.616,11:42.566,05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3,Unfailing Love Speaks First,8,8,-20.2,-35.0,Soft return of the morning-love motif; leave room around ordinary daily examples
+C07,11:34.566,14:12.686,03_Vastness_Andrew_Ev_Mixkit.mp3,Guidance and Next Step,8,8,-21.0,-34.5,"Stable forward motion for Proverbs, decisions, conversations, and the next step"
+C08,14:04.686,16:43.792,No.7 Alone With My Thoughts - Esther Abrami.mp3,Waiting and Unanswered Prayer,8,8,-18.8,-35.5,Most vulnerable bed; keep low so repeated waiting does not feel melodramatic
+C09,16:35.792,19:35.722,03_Vastness_Andrew_Ev_Mixkit.mp3,Intercession,8,8,-20.8,-34.5,Widen gently as prayer moves from the speaker to exhausted and silent listeners
+C10,19:27.722,22:09.900,06_Skyline_Eugenio_Mininni_Mixkit.mp3,Faith Response,8,8,-23.0,-32.5,"Slight lift for I choose and I trust, but keep the confidence quiet"
+C11,22:01.900,24:39.646,07_Rest_Now_Eugenio_Mininni_Mixkit.mp3,Benediction and CTA,8,6,-17.5,-33.0,Hold warm resolution; automate to -19 dB at 23:48.831 when CTA begins; fade out final 6 seconds
