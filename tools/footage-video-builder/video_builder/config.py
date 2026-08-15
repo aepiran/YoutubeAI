@@ -143,6 +143,14 @@ def build_parser(config: PipelineConfig | None = None) -> argparse.ArgumentParse
         help="Phân tích và lưu Report lựa chọn, không xuất Video.",
     )
     parser.add_argument(
+        "--analysis-stage",
+        choices=("input", "timing", "footage", "match"),
+        help=(
+            "Run one analysis stage only: input, timing, footage, or match. "
+            "Does not render/export."
+        ),
+    )
+    parser.add_argument(
         "--force-analysis",
         action="store_true",
         help="Bo qua cache ket qua va phan tich lai tu dau.",
@@ -390,14 +398,15 @@ def config_from_args(args: argparse.Namespace) -> PipelineConfig:
         )
     modes = (
         bool(args.analyze_only),
+        bool(getattr(args, "analysis_stage", None)),
         bool(getattr(args, "render_only", False)),
         bool(getattr(args, "export_scenes_only", False)),
         bool(getattr(args, "export_capcut_package", False)),
     )
     if sum(modes) > 1:
         raise ValueError(
-            "--analyze-only, --render-only, --export-scenes-only and "
-            "--export-capcut-package "
+            "--analyze-only, --analysis-stage, --render-only, "
+            "--export-scenes-only and --export-capcut-package "
             "cannot be combined"
         )
     if args.render_section and not args.render_only:

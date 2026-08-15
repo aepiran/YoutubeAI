@@ -63,6 +63,7 @@ def run_cli(argv: list[str] | None = None) -> int:
             config,
             skip_whisper=args.skip_whisper,
             analyze_only=args.analyze_only,
+            analysis_stage=args.analysis_stage,
             force_analysis=args.force_analysis,
             render_only=args.render_only,
             render_sections=(

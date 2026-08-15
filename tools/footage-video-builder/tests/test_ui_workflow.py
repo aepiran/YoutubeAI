@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QTableWidgetItem
 from video_builder.config import default_config
 from video_builder.ui.settings_dialog import BuilderUiSettings, SettingsDialog
 from video_builder.ui.main_window import (
+    ANALYSIS_STAGE_MODES,
     MainWindow,
     build_timeline_health_tooltip,
     completion_popup_content,
@@ -320,6 +321,54 @@ class WorkflowUiTests(unittest.TestCase):
         self.assertIn("--analyze-only", arguments)
         self.assertIn("--force-analysis", arguments)
 
+    def test_analysis_stage_modes_use_stage_argument(self) -> None:
+        expected = {
+            "stage_input": "input",
+            "stage_timing": "timing",
+            "stage_footage": "footage",
+            "stage_match": "match",
+        }
+
+        for mode, stage in expected.items():
+            with self.subTest(mode=mode):
+                arguments = self.window._build_cli_arguments(mode)
+                self.assertIn("--analysis-stage", arguments)
+                self.assertEqual(
+                    arguments[arguments.index("--analysis-stage") + 1],
+                    stage,
+                )
+                self.assertNotIn("--analyze-only", arguments)
+
+    def test_analysis_stage_checkboxes_expose_four_stages(self) -> None:
+        labels = [
+            checkbox.text()
+            for checkbox in self.window.analysis_stage_checks.values()
+        ]
+
+        self.assertEqual(len(labels), 4)
+        self.assertTrue(any("1." in label for label in labels))
+        self.assertTrue(any("4." in label for label in labels))
+
+    def test_completed_analysis_stage_checkbox_is_green_and_checked(self) -> None:
+        self.window._set_stage_status(0, "done")
+        checkbox = self.window.analysis_stage_checks["stage_input"]
+
+        self.assertTrue(checkbox.isChecked())
+        self.assertIn("#86efac", checkbox.styleSheet())
+
+    def test_analysis_stage_checkbox_click_starts_stage(self) -> None:
+        with patch.object(self.window, "_start_build") as start_build:
+            self.window.analysis_stage_checks["stage_timing"].click()
+
+        start_build.assert_called_once_with("stage_timing")
+
+    def test_stage_completion_popup_content(self) -> None:
+        for mode in ANALYSIS_STAGE_MODES:
+            with self.subTest(mode=mode):
+                title, message = completion_popup_content(mode)
+                self.assertIn("Giai", title)
+                self.assertIn("xong", message)
+
     def test_full_reanalysis_requires_confirmation(self) -> None:
         with (
             patch.object(self.window, "_start_build") as start_build,
@@ -495,6 +544,20 @@ class WorkflowUiTests(unittest.TestCase):
                 arguments.index("--caption-max-characters-per-line") + 1
             ],
             "16",
+        )
+
+    def test_minimum_video_minutes_accepts_two_decimals(self) -> None:
+        dialog = SettingsDialog(
+            default_config(),
+            BuilderUiSettings(minimum_video_minutes=25.12),
+        )
+        self.addCleanup(dialog.close)
+
+        self.assertEqual(dialog.minimum_video_spin.decimals(), 2)
+        self.assertAlmostEqual(dialog.minimum_video_spin.value(), 25.12)
+        self.assertAlmostEqual(
+            dialog.values.minimum_video_minutes,
+            25.12,
         )
 
     def test_settings_can_delete_imported_capcut_template(self) -> None:
