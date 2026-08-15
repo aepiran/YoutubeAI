@@ -175,6 +175,12 @@ class VisualScorer:
             url = pictures[0].get("picture") if pictures else None
         if not url:
             return None
+        local_path = Path(str(url)).expanduser()
+        if local_path.is_file():
+            try:
+                return Image.open(local_path).convert("RGB")
+            except (OSError, ValueError):
+                return None
         try:
             response = self.session.get(url, timeout=20)
             response.raise_for_status()
@@ -375,7 +381,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--project-dir",
         type=Path,
         help=(
-            "Thư mục Project chứa footage.csv và thư mục video. "
+            "Thư mục Project chứa script_beat.csv và thư mục video. "
             "Footage tải về sẽ được lưu trong <project-dir>/video."
         ),
     )
@@ -383,7 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--csv",
         type=Path,
         default=None,
-        help="Ghi đè đường dẫn footage.csv được suy ra từ Project.",
+        help="Ghi đè đường dẫn script_beat.csv được suy ra từ Project.",
     )
     parser.add_argument(
         "--output-dir",
@@ -421,17 +427,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def resolve_project_paths(args: argparse.Namespace) -> None:
-    """Resolve footage.csv and video/ from one Project directory."""
+    """Resolve script_beat.csv and video/ from one Project directory."""
     if args.project_dir is not None:
         project_dir = args.project_dir.expanduser().resolve()
         args.project_dir = project_dir
         if args.csv is None:
-            args.csv = project_dir / "footage.csv"
+            args.csv = project_dir / "script_beat.csv"
         if args.output_dir is None:
             args.output_dir = project_dir / "video"
     else:
         if args.csv is None:
-            args.csv = ROOT_DIR / "footage.csv"
+            args.csv = ROOT_DIR / "script_beat.csv"
         if args.output_dir is None:
             args.output_dir = ROOT_DIR / "video"
     args.csv = args.csv.expanduser().resolve()

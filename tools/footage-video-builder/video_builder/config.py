@@ -95,7 +95,7 @@ def default_config(workdir: Path = WORKDIR) -> PipelineConfig:
         base_dir=base_dir,
         voices_dir=base_dir / "voice",
         script_file=base_dir / "script.txt",
-        beats_file=base_dir / "footage.csv",
+        beats_file=base_dir / "script_beat.csv",
         videos_dir=base_dir / "footage",
         output_file=workdir / "video_vfootage.mp4",
         cache_dir=cache_dir,
@@ -295,6 +295,23 @@ def build_parser(config: PipelineConfig | None = None) -> argparse.ArgumentParse
             "thiên nhiên và kéo nhạc; 0 để tắt (mặc định: 25 phút)."
         ),
     )
+    parser.add_argument(
+        "--caption-max-lines",
+        type=int,
+        default=4,
+        help="Số dòng tối đa cho mỗi caption CapCut (mặc định: 4).",
+    )
+    parser.add_argument(
+        "--caption-max-characters-per-line",
+        "--caption-max-words-per-line",
+        dest="caption_max_characters_per_line",
+        type=int,
+        default=14,
+        help=(
+            "Số ký tự tối đa trên mỗi dòng caption CapCut; ngắt tại khoảng "
+            "trắng (mặc định: 14)."
+        ),
+    )
     parser.add_argument("--output", help="Đường dẫn MP4 đầu ra.")
     parser.add_argument(
         "--resolution", choices=("1080p", "720p"), default="1080p",
@@ -339,7 +356,7 @@ def config_from_args(args: argparse.Namespace) -> PipelineConfig:
                 base_dir, "audio", "voice", "voices"
             ),
             script_file=base_dir / "script.txt",
-            beats_file=base_dir / "footage.csv",
+            beats_file=base_dir / "script_beat.csv",
             videos_dir=_preferred_project_dir(base_dir, "video", "footage"),
             output_file=base_dir / "video_output.mp4",
             cache_dir=cache_dir,
@@ -365,6 +382,12 @@ def config_from_args(args: argparse.Namespace) -> PipelineConfig:
         )
     if args.analysis_workers < 1:
         raise ValueError("--analysis-workers must be at least 1")
+    if args.caption_max_lines < 1:
+        raise ValueError("--caption-max-lines must be at least 1")
+    if args.caption_max_characters_per_line < 1:
+        raise ValueError(
+            "--caption-max-characters-per-line must be at least 1"
+        )
     modes = (
         bool(args.analyze_only),
         bool(getattr(args, "render_only", False)),

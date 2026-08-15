@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated_at": "2026-08-03T14:50:14+0700",
-  "source_csv": "D:\\yt-src\\TOOL-YOUTUBE\\stock-footage-fetcher\\sample-prayer-footage.csv",
+  "source_csv": "D:\\yt-src\\TOOL-YOUTUBE\\stock-footage-fetcher\\sample-prayer-script_beat.csv",
   "selections": [
     {
       "provider": "pexels",

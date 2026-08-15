@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sqlite3
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from gui_dialogs import GuideDialog, SettingsDialog
+from footage_library import FootageLibrary, online_project_footage_filenames
 from gui_runner import WorkerRunner
 from gui_settings import (
     GuiSettings,
@@ -53,7 +55,9 @@ from gui_theme import (
 APP_NAME = "Stock Footage Finder"
 APP_VERSION = "1.0.0"
 REQUIRED_COLUMNS = {"ma_beat", "y_chinh", "tu_khoa", "hinh_can_tim", "tranh"}
-TERMINAL_STATUSES = {"Downloaded", "Download error", "No result", "Resumed"}
+TERMINAL_STATUSES = {
+    "Downloaded", "Reused", "Download error", "No result", "Resumed"
+}
 
 
 class MainWindow(QMainWindow):
@@ -151,9 +155,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.source_chip)
         settings_button = QPushButton("⚙ Settings")
         settings_button.clicked.connect(self._open_settings)
+        library_button = QPushButton("Kho footage")
+        library_button.clicked.connect(self._open_library_folder)
         guide_button = QPushButton("Hướng dẫn")
         guide_button.clicked.connect(lambda: GuideDialog(self).exec())
         layout.addWidget(settings_button)
+        layout.addWidget(library_button)
         layout.addWidget(guide_button)
         return frame
 
@@ -169,7 +176,7 @@ class MainWindow(QMainWindow):
         label.setStyleSheet("color:#f7f9ff;font-weight:700;")
         layout.addWidget(label)
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Chọn thư mục project hoặc file footage.csv")
+        self.path_edit.setPlaceholderText("Chọn thư mục project hoặc file script_beat.csv")
         self.path_edit.returnPressed.connect(self._load_path_from_edit)
         layout.addWidget(self.path_edit, 1)
 
@@ -198,7 +205,7 @@ class MainWindow(QMainWindow):
         heading = QLabel("REQUEST QUEUE")
         heading.setStyleSheet(SECTION_TITLE_STYLE)
         layout.addWidget(heading)
-        hint = QLabel("Các Beat được đọc trực tiếp từ footage.csv")
+        hint = QLabel("Các Beat được đọc trực tiếp từ script_beat.csv")
         hint.setStyleSheet(MUTED_LABEL_STYLE)
         layout.addWidget(hint)
 
@@ -305,6 +312,13 @@ class MainWindow(QMainWindow):
         self.force_check.setToolTip("Bỏ lựa chọn trong manifest cũ và chọn lại toàn bộ")
         layout.addWidget(self.force_check)
 
+        self.archive_button = QPushButton("Bổ sung vào kho footage")
+        self.archive_button.setToolTip(
+            "Đưa footage đã tải từ Pexels/Pixabay của project hiện tại vào kho tổng"
+        )
+        self.archive_button.clicked.connect(self._archive_project_footage)
+        layout.addWidget(self.archive_button)
+
         self.start_button = QPushButton("▶ Start Search")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.clicked.connect(self._start_search)
@@ -331,7 +345,7 @@ class MainWindow(QMainWindow):
     def _choose_csv(self) -> None:
         start = str(self.project_dir or Path.cwd())
         selected, _ = QFileDialog.getOpenFileName(
-            self, "Chọn footage.csv", start, "CSV files (*.csv)"
+            self, "Chọn script_beat.csv", start, "CSV files (*.csv)"
         )
         if selected:
             self._load_path(Path(selected))
@@ -343,9 +357,9 @@ class MainWindow(QMainWindow):
 
     def _load_path(self, path: Path) -> None:
         path = path.expanduser().resolve()
-        csv_path = path / "footage.csv" if path.is_dir() else path
+        csv_path = path / "script_beat.csv" if path.is_dir() else path
         if not csv_path.is_file():
-            self._show_error(f"Không tìm thấy footage.csv tại:\n{csv_path}")
+            self._show_error(f"Không tìm thấy script_beat.csv tại:\n{csv_path}")
             return
         try:
             with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -419,6 +433,8 @@ class MainWindow(QMainWindow):
             sources.append("Pexels")
         if self.settings.use_pixabay:
             sources.append("Pixabay")
+        if self.settings.use_local_library:
+            sources.insert(0, "Library")
         text = " + ".join(sources) if sources else "No source"
         valid = (
             (not self.settings.use_pexels or bool(self.pexels_key))
@@ -436,7 +452,7 @@ class MainWindow(QMainWindow):
 
     def _start_search(self) -> None:
         if not self.csv_path or not self.project_dir:
-            self._show_error("Hãy chọn project có footage.csv trước.")
+            self._show_error("Hãy chọn project có script_beat.csv trước.")
             return
         if not self.settings.use_pexels and not self.settings.use_pixabay:
             self._show_error("Hãy bật ít nhất một nguồn trong Settings.")
@@ -465,6 +481,7 @@ class MainWindow(QMainWindow):
 
     def _worker_started(self) -> None:
         self.start_button.setEnabled(False)
+        self.archive_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.progress.setRange(0, 0)
         mode = "DRY RUN" if self.settings.dry_run else "DOWNLOAD"
@@ -473,6 +490,7 @@ class MainWindow(QMainWindow):
 
     def _worker_finished(self, exit_code: int, message: str) -> None:
         self.start_button.setEnabled(True)
+        self.archive_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.progress.setRange(0, 100)
         self.progress.setValue(100 if exit_code == 0 else self.progress.value())
@@ -494,6 +512,7 @@ class MainWindow(QMainWindow):
         item.setText(status)
         colors = {
             "Downloaded": "#4ade80",
+            "Reused": "#34d399",
             "Resumed": "#60a5fa",
             "No result": "#fbbf24",
             "Download error": "#f87171",
@@ -565,6 +584,8 @@ class MainWindow(QMainWindow):
         source = self._manifest_row(selected[0].row())
         lines = [
             f"Beat: {source.get('beat_id', '')}",
+            f"Origin: {source.get('origin', 'online')}",
+            f"Library asset: {source.get('asset_id', '')}",
             f"Source: {str(source.get('provider', '')).upper()}",
             f"Video ID: {source.get('video_id', '')}",
             f"Contributor: {source.get('contributor', '')}",
@@ -592,6 +613,63 @@ class MainWindow(QMainWindow):
         output = self.project_dir / "video"
         output.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(output)))
+
+    def _open_library_folder(self) -> None:
+        path = Path(self.settings.library_dir).expanduser()
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._show_error(f"Không thể mở kho footage:\n{exc}")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+
+    def _archive_project_footage(self) -> None:
+        if self.runner.is_running:
+            self._show_error("Hãy chờ workflow hiện tại hoàn tất.")
+            return
+        if not self.project_dir:
+            self._show_error("Hãy chọn project trước.")
+            return
+        library_text = self.settings.library_dir.strip()
+        if not library_text:
+            self._show_error("Hãy chọn kho footage trong Settings.")
+            return
+        output_dir = self.project_dir / "video"
+        manifests = [
+            self.project_dir / "selected-footage.json",
+            self.project_dir / ".cache" / "stock-footage-supplement.json",
+        ]
+        filenames = online_project_footage_filenames(output_dir, manifests)
+        if not filenames:
+            QMessageBox.information(
+                self,
+                "Bổ sung kho footage",
+                "Project không có footage Pexels/Pixabay mới cần đưa vào kho.",
+            )
+            return
+        try:
+            result = FootageLibrary(Path(library_text)).archive_project(
+                self.project_dir,
+                output_dir=output_dir,
+                manifest_paths=manifests,
+                filenames=filenames,
+            )
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            self._show_error(f"Không thể bổ sung kho footage:\n{exc}")
+            return
+        self._append_log(
+            "Library import: "
+            f"{result.imported} new, {result.duplicates} duplicate, "
+            f"{result.failed} failed."
+        )
+        QMessageBox.information(
+            self,
+            "Đã bổ sung kho footage",
+            f"Đã kiểm tra {len(filenames)} file Pexels/Pixabay.\n\n"
+            f"Thêm mới: {result.imported}\n"
+            f"Đã có trong kho: {result.duplicates}\n"
+            f"Lỗi: {result.failed}",
+        )
 
     def _append_log(self, message: str) -> None:
         self.log_edit.appendPlainText(message)

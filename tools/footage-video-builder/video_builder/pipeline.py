@@ -60,6 +60,8 @@ def run_pipeline(
     capcut_hook_music: Path | None = None,
     capcut_hook_volume_db: float = -17.0,
     capcut_body_music: list[dict] | None = None,
+    caption_max_lines: int = 4,
+    caption_max_characters_per_line: int = 14,
     analyze_sections: set[int] | None = None,
 ) -> None:
     if export_capcut_package:
@@ -76,6 +78,10 @@ def run_pipeline(
             hook_music=capcut_hook_music,
             hook_volume_db=capcut_hook_volume_db,
             body_music=capcut_body_music,
+            caption_max_lines=caption_max_lines,
+            caption_max_characters_per_line=(
+                caption_max_characters_per_line
+            ),
         )
         return
     if export_scenes_only:

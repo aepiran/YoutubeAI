@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -31,17 +31,23 @@ def data_dir() -> Path:
     return path
 
 
-def model_cache_dir() -> Path:
+def default_model_cache_dir() -> Path:
     if getattr(sys, "frozen", False):
-        path = data_dir() / "model-cache"
-    else:
-        path = (
-            source_root().parent
-            / "footage-video-builder"
-            / ".cache"
-            / "huggingface"
-            / "hub"
-        )
+        return portable_root() / ".cache" / "huggingface" / "hub"
+    return (
+        source_root().parent
+        / "footage-video-builder"
+        / ".cache"
+        / "huggingface"
+        / "hub"
+    )
+
+
+def model_cache_dir(settings: "GuiSettings | None" = None) -> Path:
+    configured = str(settings.model_cache_dir if settings else "").strip()
+    path = Path(configured).expanduser() if configured else default_model_cache_dir()
+    if not path.is_absolute():
+        path = portable_root() / path
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -78,6 +84,12 @@ class GuiSettings:
     min_height: int = 1080
     max_pixabay_downloads: int = 20
     dry_run: bool = False
+    use_local_library: bool = True
+    auto_archive_library: bool = True
+    library_dir: str = field(
+        default_factory=lambda: str(portable_root() / "FootageLibrary")
+    )
+    model_cache_dir: str = field(default_factory=lambda: str(default_model_cache_dir()))
     last_project_dir: str = ""
 
 
@@ -113,6 +125,14 @@ def normalize(settings: GuiSettings) -> GuiSettings:
     except (TypeError, ValueError):
         settings.min_score = 0.18
     settings.dry_run = bool(settings.dry_run)
+    settings.use_local_library = bool(settings.use_local_library)
+    settings.auto_archive_library = bool(settings.auto_archive_library)
+    settings.library_dir = str(
+        settings.library_dir or portable_root() / "FootageLibrary"
+    ).strip()
+    settings.model_cache_dir = str(
+        settings.model_cache_dir or default_model_cache_dir()
+    ).strip()
     settings.last_project_dir = str(settings.last_project_dir or "").strip()
     return settings
 

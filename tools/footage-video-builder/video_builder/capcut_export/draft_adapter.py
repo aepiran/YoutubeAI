@@ -69,14 +69,125 @@ def _find_material(content: dict, material_id: str) -> tuple[str, dict]:
     raise ValueError(f"Template thiếu Material tham chiếu: {material_id}")
 
 
-def _set_caption_text(material: dict, text: str) -> None:
-    payload = json.loads(material["content"])
-    payload["text"] = text
-    for style in payload.get("styles", []):
-        style["range"] = [0, len(text)]
-    material["content"] = json.dumps(
-        payload, ensure_ascii=False, separators=(",", ":")
+def _load_text_payload(raw_payload: str) -> dict:
+    try:
+        return json.loads(raw_payload)
+    except json.JSONDecodeError:
+        escaped = []
+        in_string = False
+        after_backslash = False
+        replacements = {"\r": "\\r", "\n": "\\n", "\t": "\\t"}
+        for character in raw_payload:
+            if in_string and character in replacements:
+                escaped.append(replacements[character])
+                after_backslash = False
+                continue
+            escaped.append(character)
+            if after_backslash:
+                after_backslash = False
+            elif character == "\\" and in_string:
+                after_backslash = True
+            elif character == '"':
+                in_string = not in_string
+        return json.loads("".join(escaped))
+
+
+def _caption_font(payload: dict) -> dict | None:
+    styles = payload.get("styles", [])
+    if not styles or not isinstance(styles[0], dict):
+        return None
+    font = styles[0].get("font")
+    return font if isinstance(font, dict) else None
+
+
+def _caption_has_consistent_font(material: dict) -> bool:
+    try:
+        content = _load_text_payload(material["content"])
+        base_content = _load_text_payload(material["base_content"])
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    content_font = _caption_font(content)
+    base_font = _caption_font(base_content)
+    if not content_font or not base_font:
+        return False
+    return (
+        content_font.get("id"), content_font.get("path")
+    ) == (
+        base_font.get("id"), base_font.get("path")
     )
+
+
+def _caption_uses_uppercase(material: dict) -> bool:
+    try:
+        text = str(_load_text_payload(material["content"]).get("text", ""))
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    letters = [character for character in text if character.isalpha()]
+    return bool(letters) and text == text.upper()
+
+
+def _caption_words(text: str, duration: int) -> dict:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    words = normalized.split()
+    if not words:
+        return {"start_time": [], "end_time": [], "text": []}
+    duration_ms = max(1, round(duration / 1000))
+    starts: list[int] = []
+    ends: list[int] = []
+    tokens: list[str] = []
+    for index, word in enumerate(words):
+        start = round(index * duration_ms / len(words))
+        end = round((index + 1) * duration_ms / len(words))
+        starts.append(start)
+        ends.append(end)
+        tokens.append(word)
+        if index < len(words) - 1:
+            starts.append(end)
+            ends.append(end)
+            tokens.append(" ")
+    return {"start_time": starts, "end_time": ends, "text": tokens}
+
+
+def _set_caption_text(
+    material: dict,
+    text: str,
+    *,
+    semantic_text: str | None = None,
+    duration: int = 0,
+) -> None:
+    payloads = {}
+    for field in ("content", "base_content"):
+        raw_payload = material.get(field)
+        if not raw_payload:
+            continue
+        payload = _load_text_payload(raw_payload)
+        payloads[field] = payload
+        payload["text"] = text
+        for style in payload.get("styles", []):
+            style["range"] = [0, len(text)]
+    content_font = _caption_font(payloads.get("content", {}))
+    if content_font and "base_content" in payloads:
+        for style in payloads["base_content"].get("styles", []):
+            style["font"] = copy.deepcopy(content_font)
+    for field, payload in payloads.items():
+        material[field] = json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":")
+        )
+    semantic = re.sub(
+        r"\s+", " ", semantic_text if semantic_text is not None else text
+    ).strip()
+    if "recognize_text" in material:
+        material["recognize_text"] = semantic
+    if "translate_original_text" in material:
+        material["translate_original_text"] = semantic
+    if isinstance(material.get("words"), dict):
+        material["words"] = _caption_words(semantic, duration)
+    if isinstance(material.get("current_words"), dict):
+        material["current_words"] = {
+            "start_time": [],
+            "end_time": [],
+            "text": [],
+        }
 
 
 def _replace_video_track(
@@ -90,6 +201,11 @@ def _replace_video_track(
     template_segments = video_track["segments"]
     if not template_segments:
         raise ValueError("Template CapCut chưa có Video placeholder")
+    old_video_ids = {
+        segment.get("material_id")
+        for segment in template_segments
+        if segment.get("material_id")
+    }
     template_videos = {}
     ref_sources = {}
     for template_segment in template_segments:
@@ -154,7 +270,11 @@ def _replace_video_track(
         segment["extra_material_refs"] = new_refs
         segments.append(segment)
 
-    content["materials"]["videos"] = videos
+    content["materials"]["videos"] = [
+        item
+        for item in content["materials"].get("videos", [])
+        if item.get("id") not in old_video_ids
+    ] + videos
     video_track["segments"] = segments
 
 
@@ -345,14 +465,36 @@ def _replace_captions(
     if text_track is None or not text_track.get("segments"):
         return
     template_segment = text_track["segments"][0]
-    _, template_text_template = _find_material(
+    for candidate_segment in text_track["segments"]:
+        try:
+            candidate_collection, candidate_material = _find_material(
+                content, candidate_segment["material_id"]
+            )
+            if candidate_collection != "texts":
+                info = candidate_material["text_info_resources"][0]
+                _, candidate_material = _find_material(
+                    content, info["text_material_id"]
+                )
+        except (KeyError, IndexError, ValueError):
+            continue
+        if _caption_has_consistent_font(candidate_material):
+            template_segment = candidate_segment
+            break
+    template_collection, template_material = _find_material(
         content, template_segment["material_id"]
     )
-    info = template_text_template["text_info_resources"][0]
-    _, template_text = _find_material(content, info["text_material_id"])
+    direct_text_material = template_collection == "texts"
+    if direct_text_material:
+        template_text_template = None
+        template_text = template_material
+    else:
+        template_text_template = template_material
+        info = template_text_template["text_info_resources"][0]
+        _, template_text = _find_material(content, info["text_material_id"])
+    uppercase_captions = _caption_uses_uppercase(template_text)
     animation_id = template_segment["extra_material_refs"][0]
     _, template_animation = _find_material(content, animation_id)
-    old_template_ids = {
+    old_material_ids = {
         segment["material_id"]
         for segment in text_track["segments"]
     }
@@ -361,15 +503,16 @@ def _replace_captions(
         for segment in text_track["segments"]
         for ref_id in segment.get("extra_material_refs", [])
     }
-    old_text_ids = set()
-    for text_template in content["materials"]["text_templates"]:
-        if text_template.get("id") not in old_template_ids:
-            continue
-        old_text_ids.update(
-            info.get("text_material_id")
-            for info in text_template.get("text_info_resources", [])
-            if info.get("text_material_id")
-        )
+    old_text_ids = set(old_material_ids) if direct_text_material else set()
+    if not direct_text_material:
+        for text_template in content["materials"].get("text_templates", []):
+            if text_template.get("id") not in old_material_ids:
+                continue
+            old_text_ids.update(
+                info.get("text_material_id")
+                for info in text_template.get("text_info_resources", [])
+                if info.get("text_material_id")
+            )
 
     text_templates = []
     texts = []
@@ -380,7 +523,13 @@ def _replace_captions(
         start = _microseconds(cue.start) if cue.start > 0 else 0
         text = copy.deepcopy(template_text)
         text["id"] = _uuid()
-        _set_caption_text(text, cue.text)
+        display_text = cue.text.upper() if uppercase_captions else cue.text
+        _set_caption_text(
+            text,
+            display_text,
+            semantic_text=cue.text,
+            duration=duration,
+        )
         texts.append(text)
 
         animation = copy.deepcopy(template_animation)
@@ -390,19 +539,21 @@ def _replace_captions(
             item["duration"] = duration
         animations.append(animation)
 
-        text_template = copy.deepcopy(template_text_template)
-        text_template["id"] = _uuid()
-        text_info = text_template["text_info_resources"][0]
-        text_info["id"] = _uuid()
-        text_info["text_material_id"] = text["id"]
-        text_info["extra_material_refs"] = [animation["id"]]
-        text_info["attach_info"]["start_time"] = 0
-        text_info["attach_info"]["duration"] = duration
-        text_templates.append(text_template)
-
         segment = copy.deepcopy(template_segment)
         segment["id"] = _uuid()
-        segment["material_id"] = text_template["id"]
+        if direct_text_material:
+            segment["material_id"] = text["id"]
+        else:
+            text_template = copy.deepcopy(template_text_template)
+            text_template["id"] = _uuid()
+            text_info = text_template["text_info_resources"][0]
+            text_info["id"] = _uuid()
+            text_info["text_material_id"] = text["id"]
+            text_info["extra_material_refs"] = [animation["id"]]
+            text_info["attach_info"]["start_time"] = 0
+            text_info["attach_info"]["duration"] = duration
+            text_templates.append(text_template)
+            segment["material_id"] = text_template["id"]
         segment["extra_material_refs"] = [animation["id"]]
         segment["target_timerange"] = {
             "start": start,
@@ -415,11 +566,12 @@ def _replace_captions(
         for item in content["materials"]["texts"]
         if item.get("id") not in old_text_ids
     ] + texts
-    content["materials"]["text_templates"] = [
-        item
-        for item in content["materials"]["text_templates"]
-        if item.get("id") not in old_template_ids
-    ] + text_templates
+    if not direct_text_material:
+        content["materials"]["text_templates"] = [
+            item
+            for item in content["materials"].get("text_templates", [])
+            if item.get("id") not in old_material_ids
+        ] + text_templates
     content["materials"]["material_animations"] = [
         item
         for item in content["materials"]["material_animations"]
@@ -429,7 +581,26 @@ def _replace_captions(
 
 
 def _stretch_template_tracks(content: dict, duration: int) -> None:
+    main_video_seen = False
     for track in content["tracks"]:
+        if track["type"] == "video":
+            if not main_video_seen:
+                main_video_seen = True
+                continue
+            for segment in track.get("segments", []):
+                collection, material = _find_material(
+                    content, segment["material_id"]
+                )
+                if collection != "videos" or material.get("type") != "photo":
+                    continue
+                if segment.get("target_timerange", {}).get("start", 0) != 0:
+                    continue
+                segment["target_timerange"]["duration"] = duration
+                segment.setdefault("source_timerange", {})["duration"] = duration
+                material["duration"] = max(
+                    int(material.get("duration", 0)), duration
+                )
+            continue
         if track["type"] != "effect":
             continue
         for segment in track.get("segments", []):
@@ -599,6 +770,36 @@ def _register_draft(
     os.replace(temporary, registry_file)
 
 
+def _recover_interrupted_draft(
+    target: Path,
+    backup: Path,
+) -> Path | None:
+    """Restore a replacement backup while preserving an incomplete Draft."""
+    if not backup.exists():
+        return None
+    recovery_target = None
+    if target.exists():
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        recovery_target = target.parent / (
+            f".{target.name}.capcut_adapter_recovery_{timestamp}"
+        )
+        suffix = 1
+        while recovery_target.exists():
+            recovery_target = target.parent / (
+                f".{target.name}.capcut_adapter_recovery_"
+                f"{timestamp}_{suffix}"
+            )
+            suffix += 1
+        target.rename(recovery_target)
+        print(
+            "Đã giữ lại Draft từ lần chạy lỗi để phục hồi tại: "
+            f"{recovery_target}"
+        )
+    backup.rename(target)
+    print(f"Đã khôi phục Backup Draft trước khi thử lại: {target}")
+    return recovery_target
+
+
 def create_capcut_draft(
     package_dir: Path,
     template_dir: Path,
@@ -637,6 +838,9 @@ def create_capcut_draft(
     target = root / safe_name
     replaced_meta = None
     backup_target = None
+    interrupted_backup = root / f".{safe_name}.capcut_adapter_backup"
+    # A previous replacement may have stopped after moving the old Draft.
+    _recover_interrupted_draft(target, interrupted_backup)
     if target.exists():
         owned_marker = target / "Resources" / "CapCutAdapter"
         if not replace_existing or not owned_marker.is_dir():
@@ -645,12 +849,7 @@ def create_capcut_draft(
                 f"Draft do ứng dụng tạo: {target}"
             )
         replaced_meta = _load_json(target / "draft_meta_info.json")
-        backup_target = root / f".{safe_name}.capcut_adapter_backup"
-        if backup_target.exists():
-            raise FileExistsError(
-                f"Backup Draft đang tồn tại, chưa thể thay thế: "
-                f"{backup_target}"
-            )
+        backup_target = interrupted_backup
         target.rename(backup_target)
     shutil.copytree(template_dir, target)
     for stale_mini_draft in target.glob(

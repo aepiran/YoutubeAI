@@ -2,7 +2,7 @@
 
 ## Mục tiêu
 
-Mỗi dòng trong `footage.csv` đại diện cho một Beat cần footage. Công cụ phải:
+Mỗi dòng trong `script_beat.csv` đại diện cho một Beat cần footage. Công cụ phải:
 
 1. Tìm đủ rộng trên Pexels mà không tải toàn bộ ứng viên.
 2. Đánh giá nội dung hình ảnh sát `hinh_can_tim`, `y_chinh` và `tu_khoa`.

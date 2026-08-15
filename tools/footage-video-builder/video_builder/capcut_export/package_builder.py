@@ -9,11 +9,11 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from moviepy import AudioFileClip, afx
+from moviepy import AudioFileClip, CompositeAudioClip, afx
 
 from ..audio_mix import load_configured_music_rows
 from ..config import PipelineConfig
-from ..inputs import open_voice_timeline
+from ..inputs import discover_voice_files, open_voice_timeline
 from ..output import (
     load_render_plan,
     render_video,
@@ -28,7 +28,8 @@ from .subtitle_exporter import (
 )
 
 
-PACKAGE_SCHEMA_VERSION = 1
+PACKAGE_SCHEMA_VERSION = 2
+_DURATION_TOLERANCE_SECONDS = 0.75
 
 
 def _load_report(config: PipelineConfig) -> dict:
@@ -179,6 +180,76 @@ def _voice_paths(report: dict) -> list[Path]:
     return paths
 
 
+def _paths_match(left: list[Path], right: list[Path]) -> bool:
+    if len(left) != len(right):
+        return False
+    return all(
+        str(left_path.resolve()).lower() == str(right_path.resolve()).lower()
+        for left_path, right_path in zip(left, right)
+    )
+
+
+def _report_audio_duration(report: dict) -> float:
+    voices = report.get("inputs", {}).get("voice_timeline", [])
+    if isinstance(voices, list) and voices:
+        return max(float(item.get("end", 0.0)) for item in voices)
+    sections = report.get("sections", [])
+    if isinstance(sections, list) and sections:
+        return max(float(item.get("timeline_end", 0.0)) for item in sections)
+    return max(
+        float(row.get("timeline_end", 0.0))
+        for row in report.get("timeline", [])
+    )
+
+
+def _timeline_duration(report: dict) -> float:
+    return max(
+        float(row.get("timeline_end", 0.0))
+        for row in report["timeline"]
+    )
+
+
+def _validate_report_matches_current_audio(
+    config: PipelineConfig,
+    report: dict,
+) -> None:
+    report_paths = _voice_paths(report)
+    current_paths = discover_voice_files(config)
+    if not _paths_match(report_paths, current_paths):
+        raise ValueError(
+            "Report phan tich khong khop Audio hien tai. "
+            "Hay bam Phan tich lai truoc khi xuat CapCut. "
+            "Report dung: "
+            + ", ".join(str(path) for path in report_paths)
+            + "; hien tai: "
+            + ", ".join(str(path) for path in current_paths)
+        )
+    audio_clip, source_clips, _ = open_voice_timeline(current_paths)
+    try:
+        actual_duration = float(audio_clip.duration)
+    finally:
+        if len(source_clips) > 1:
+            audio_clip.close()
+        for clip in source_clips:
+            clip.close()
+    report_duration = _report_audio_duration(report)
+    if abs(actual_duration - report_duration) > _DURATION_TOLERANCE_SECONDS:
+        raise ValueError(
+            "Report phan tich da cu so voi Audio hien tai. "
+            f"Report: {report_duration / 60.0:.2f} phut; "
+            f"Audio hien tai: {actual_duration / 60.0:.2f} phut. "
+            "Hay bam Phan tich lai tu dau roi xuat CapCut lai."
+        )
+    timeline_duration = _timeline_duration(report)
+    if timeline_duration + _DURATION_TOLERANCE_SECONDS < report_duration:
+        raise ValueError(
+            "Report phan tich chua phu het Audio. "
+            f"Timeline: {timeline_duration / 60.0:.2f} phut; "
+            f"Audio: {report_duration / 60.0:.2f} phut. "
+            "Hay bam Phan tich lai tu dau roi xuat CapCut lai."
+        )
+
+
 def _read_scene_manifest(path: Path) -> list[dict]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -194,6 +265,9 @@ def _write_package_manifest(
     background_music_rows: list[dict],
     reference_video: Path | None,
     captions_enabled: bool,
+    caption_max_lines: int,
+    caption_max_characters_per_line: int,
+    narration_duration: float,
 ) -> None:
     timeline_rows = report["timeline"]
     if len(scene_rows) != len(timeline_rows):
@@ -216,9 +290,8 @@ def _write_package_manifest(
                 "narration": str(timeline.get("narration", "")),
             }
         )
-    duration = max(
-        float(row.get("timeline_end", 0.0)) for row in timeline_rows
-    )
+    timeline_duration = _timeline_duration(report)
+    duration = max(timeline_duration, float(narration_duration))
     payload = {
         "schema": "footage-video-builder.capcut-package",
         "schema_version": PACKAGE_SCHEMA_VERSION,
@@ -229,6 +302,8 @@ def _write_package_manifest(
             "height": config.resolution[1],
             "fps": config.output_fps,
             "duration": round(duration, 6),
+            "timeline_duration": round(timeline_duration, 6),
+            "narration_duration": round(float(narration_duration), 6),
         },
         "tracks": {
             "video": scenes,
@@ -243,6 +318,10 @@ def _write_package_manifest(
                 "format": "srt",
                 "encoding": "utf-8",
                 "enabled": captions_enabled,
+                "max_lines": caption_max_lines,
+                "max_characters_per_line": (
+                    caption_max_characters_per_line
+                ),
             },
             "reference_video": (
                 reference_video.name if reference_video is not None else None
@@ -325,6 +404,84 @@ def _append_music_segments(
     return cursor
 
 
+def _export_cue_sheet_background_music(
+    output_dir: Path,
+    cue_rows: list[dict],
+    total_duration: float,
+) -> list[dict]:
+    music_dir = output_dir / "music"
+    music_dir.mkdir(parents=True, exist_ok=True)
+    destination = music_dir / "background_music.wav"
+    music_clips = []
+    opened_sources = []
+    try:
+        for row in cue_rows:
+            source_path = Path(str(row["path"])).resolve()
+            if not source_path.is_file():
+                raise FileNotFoundError(
+                    f"Khong tim thay file nhac nen: {source_path}"
+                )
+            source = AudioFileClip(str(source_path))
+            opened_sources.append(source)
+            source_start = float(row.get("source_start", 0.0))
+            duration = min(
+                float(row["duration"]),
+                max(0.0, float(source.duration) - source_start),
+            )
+            if duration <= 0:
+                raise ValueError(
+                    f"Cue nhac vuot ngoai thoi luong file: {source_path}"
+                )
+            clip = source.subclipped(source_start, source_start + duration)
+            clip = clip.with_volume_scaled(float(row.get("volume", 1.0)))
+            effects = []
+            fade_in = min(float(row.get("fade_in", 0.0)), duration)
+            fade_out = min(float(row.get("fade_out", 0.0)), duration)
+            if fade_in > 0:
+                effects.append(afx.AudioFadeIn(fade_in))
+            if fade_out > 0:
+                effects.append(afx.AudioFadeOut(fade_out))
+            if effects:
+                clip = clip.with_effects(effects)
+            music_clips.append(clip.with_start(float(row["timeline_start"])))
+        composite = CompositeAudioClip(music_clips).with_duration(total_duration)
+        try:
+            composite.write_audiofile(
+                str(destination),
+                fps=48_000,
+                codec="pcm_s16le",
+                logger=None,
+            )
+        finally:
+            composite.close()
+    finally:
+        for clip in music_clips:
+            clip.close()
+        for source in opened_sources:
+            source.close()
+    return [
+        {
+            "cue": "DWG_BACKGROUND_MUSIC",
+            "file": f"music/{destination.name}",
+            "name": destination.name,
+            "role": "dwg_cue_mix",
+            "timeline_start": 0.0,
+            "duration": round(total_duration, 6),
+            "source_start": 0.0,
+            "source_duration": round(total_duration, 6),
+            "gain_db": 0.0,
+            "volume": 1.0,
+            "fade_in": 0.0,
+            "fade_out": 0.0,
+            "target_music_lufs": None,
+            "notes": "Cue sheet rendered to one baked background music file",
+            "cue_count": len(cue_rows),
+            "fades_baked_into_file": True,
+            "gain_baked_into_file": True,
+        }
+    ]
+
+
 def _export_background_music(
     output_dir: Path,
     report: dict,
@@ -333,10 +490,12 @@ def _export_background_music(
     body_music: list[dict] | None,
     hook_volume_db: float = -17.0,
     cue_rows: list[dict] | None = None,
+    total_duration: float | None = None,
 ) -> list[dict]:
-    total_duration = max(
-        float(row.get("timeline_end", 0.0))
-        for row in report["timeline"]
+    total_duration = (
+        float(total_duration)
+        if total_duration is not None
+        else _timeline_duration(report)
     )
     requested = []
     if hook_music is not None:
@@ -346,63 +505,9 @@ def _export_background_music(
             ("body", Path(str(row["path"])), bool(row.get("repeat", False)))
         )
     if cue_rows and hook_music is None and not body_music:
-        music_dir = output_dir / "music"
-        music_dir.mkdir(parents=True, exist_ok=True)
-        exported_rows = []
-        for index, row in enumerate(cue_rows, start=1):
-            source_path = Path(str(row["path"])).resolve()
-            if not source_path.is_file():
-                raise FileNotFoundError(
-                    f"Không tìm thấy file nhạc nền: {source_path}"
-                )
-            destination = (
-                music_dir / _safe_media_name(index, "dwg-cue", source_path)
-            ).with_suffix(".wav")
-            source_clip = AudioFileClip(str(source_path))
-            cue_clip = None
-            try:
-                source_start = float(row.get("source_start", 0.0))
-                duration = min(
-                    float(row["duration"]),
-                    max(0.0, float(source_clip.duration) - source_start),
-                )
-                if duration <= 0:
-                    raise ValueError(
-                        f"Cue nhạc vượt ngoài thời lượng file: {source_path}"
-                    )
-                cue_clip = source_clip.subclipped(
-                    source_start, source_start + duration
-                )
-                effects = []
-                fade_in = min(float(row.get("fade_in", 0.0)), duration)
-                fade_out = min(float(row.get("fade_out", 0.0)), duration)
-                if fade_in > 0:
-                    effects.append(afx.AudioFadeIn(fade_in))
-                if fade_out > 0:
-                    effects.append(afx.AudioFadeOut(fade_out))
-                if effects:
-                    cue_clip = cue_clip.with_effects(effects)
-                cue_clip.write_audiofile(
-                    str(destination),
-                    fps=48_000,
-                    codec="pcm_s16le",
-                    logger=None,
-                )
-            finally:
-                if cue_clip is not None:
-                    cue_clip.close()
-                source_clip.close()
-            item = dict(row)
-            item.pop("path", None)
-            item["file"] = f"music/{destination.name}"
-            item["source_start"] = 0.0
-            item["source_duration"] = round(duration, 6)
-            item["duration"] = round(duration, 6)
-            item["fade_in"] = 0.0
-            item["fade_out"] = 0.0
-            item["fades_baked_into_file"] = True
-            exported_rows.append(item)
-        return exported_rows
+        return _export_cue_sheet_background_music(
+            output_dir, cue_rows, total_duration
+        )
     if not requested:
         return []
     for _role, source, _repeat in requested:
@@ -510,12 +615,124 @@ def build_capcut_package(
     hook_music: Path | None = None,
     hook_volume_db: float = -17.0,
     body_music: list[dict] | None = None,
+    caption_max_lines: int = 4,
+    caption_max_characters_per_line: int = 14,
 ) -> CapCutPackage:
+    pending_draft_install = output_dir / ".capcut_draft_install_pending.json"
+    manifest_file = output_dir / "capcut_manifest.json"
+    if template_dir is not None and pending_draft_install.is_file():
+        try:
+            pending = json.loads(
+                pending_draft_install.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            pending = {}
+        required_files = [manifest_file, output_dir / "narration.wav"]
+        existing_manifest = {}
+        if manifest_file.is_file():
+            try:
+                existing_manifest = json.loads(
+                    manifest_file.read_text(encoding="utf-8-sig")
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                existing_manifest = {}
+        caption_profile = (
+            existing_manifest.get("tracks", {}).get("captions", {})
+        )
+        profile_matches = (
+            caption_profile.get("max_lines") == caption_max_lines
+            and caption_profile.get("max_characters_per_line")
+            == caption_max_characters_per_line
+        )
+        current_audio_matches = False
+        try:
+            retry_report = _load_report(config)
+            _validate_report_matches_current_audio(config, retry_report)
+            current_audio_duration = _report_audio_duration(retry_report)
+            current_audio_matches = (
+                abs(
+                    float(
+                        existing_manifest.get("canvas", {}).get(
+                            "narration_duration", -1.0
+                        )
+                    )
+                    - current_audio_duration
+                )
+                <= _DURATION_TOLERANCE_SECONDS
+            )
+        except (OSError, ValueError, TypeError, KeyError):
+            current_audio_matches = False
+        if (
+            all(path.is_file() for path in required_files)
+            and profile_matches
+            and current_audio_matches
+        ):
+            retry_template = Path(
+                str(pending.get("template_dir") or template_dir)
+            ).resolve()
+            retry_drafts_root = pending.get("drafts_root")
+            retry_root = (
+                Path(str(retry_drafts_root)).resolve()
+                if retry_drafts_root
+                else (drafts_root or retry_template.parent).resolve()
+            )
+            retry_name = str(
+                pending.get("draft_name")
+                or draft_name
+                or config.base_dir.name
+            )
+            retry_target = retry_root / retry_name
+            retry_replace = bool(
+                pending.get("replace_existing", replace_draft)
+                or (
+                    retry_target
+                    / "Resources"
+                    / "CapCutAdapter"
+                ).is_dir()
+                or (
+                    retry_root
+                    / f".{retry_name}.capcut_adapter_backup"
+                ).is_dir()
+            )
+            print(
+                "Phát hiện gói CapCut đã xuất xong từ lần chạy trước; "
+                "chỉ thử lại bước cài Draft."
+            )
+            create_capcut_draft(
+                output_dir,
+                retry_template,
+                retry_name,
+                drafts_root=retry_root,
+                register=bool(pending.get("register", register_draft)),
+                replace_existing=retry_replace,
+            )
+            pending_draft_install.unlink(missing_ok=True)
+            manifest = existing_manifest
+            reference_path = output_dir / "reference.mp4"
+            return CapCutPackage(
+                root=output_dir,
+                scenes_dir=output_dir / "scenes",
+                narration_file=output_dir / "narration.wav",
+                captions_file=output_dir / "captions.srt",
+                manifest_file=manifest_file,
+                reference_video=(
+                    reference_path
+                    if manifest.get("tracks", {}).get("reference_video")
+                    and reference_path.is_file()
+                    else None
+                ),
+            )
     report = (
         load_section_report(config, section_indexes)
         if section_indexes
         else _load_report(config)
     )
+    _validate_report_matches_current_audio(config, report)
+    voice_paths = _voice_paths(report)
+    audio_clip, source_clips, _ = open_voice_timeline(voice_paths)
+    narration_duration = float(audio_clip.duration)
+    timeline_duration = _timeline_duration(report)
+    total_duration = max(timeline_duration, narration_duration)
     output_dir.mkdir(parents=True, exist_ok=True)
     scenes_dir = output_dir / "scenes"
     scene_manifest = export_capcut_scenes(
@@ -534,26 +751,30 @@ def build_capcut_package(
         cue_rows=(
             load_configured_music_rows(
                 config,
-                max(
-                    float(row.get("timeline_end", 0.0))
-                    for row in report["timeline"]
-                ),
+                total_duration,
             )
             if hook_music is None and not body_music
             else None
         ),
+        total_duration=total_duration,
     )
 
     timings = report.get("word_timings")
     cues = (
-        captions_from_word_timings(timings)
+        captions_from_word_timings(
+            timings,
+            max_lines=caption_max_lines,
+            max_characters_per_line=caption_max_characters_per_line,
+        )
         if isinstance(timings, list) and timings
-        else captions_from_timeline(report["timeline"])
+        else captions_from_timeline(
+            report["timeline"],
+            max_lines=caption_max_lines,
+            max_characters_per_line=caption_max_characters_per_line,
+        )
     )
     captions_file = write_srt(output_dir / "captions.srt", cues)
 
-    voice_paths = _voice_paths(report)
-    audio_clip, source_clips, _ = open_voice_timeline(voice_paths)
     narration_file = output_dir / "narration.wav"
     reference_video = (
         output_dir / "reference.mp4"
@@ -601,7 +822,6 @@ def build_capcut_package(
         for clip in source_clips:
             clip.close()
 
-    manifest_file = output_dir / "capcut_manifest.json"
     _write_package_manifest(
         manifest_file,
         config=config,
@@ -611,6 +831,11 @@ def build_capcut_package(
         background_music_rows=background_music_rows,
         reference_video=reference_video,
         captions_enabled=bool(cues),
+        caption_max_lines=caption_max_lines,
+        caption_max_characters_per_line=(
+            caption_max_characters_per_line
+        ),
+        narration_duration=narration_duration,
     )
     readme = output_dir / "README_CAPCUT.txt"
     reference_step = (
@@ -632,6 +857,24 @@ def build_capcut_package(
     print(f"Gói CapCut đã sẵn sàng: {output_dir}")
     print(f"CapCut manifest: {manifest_file}")
     if template_dir is not None:
+        pending_draft_install.write_text(
+            json.dumps(
+                {
+                    "draft_name": draft_name or config.base_dir.name,
+                    "template_dir": str(template_dir.resolve()),
+                    "drafts_root": (
+                        str(drafts_root.resolve())
+                        if drafts_root is not None
+                        else None
+                    ),
+                    "register": register_draft,
+                    "replace_existing": replace_draft,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         create_capcut_draft(
             output_dir,
             template_dir,
@@ -640,6 +883,7 @@ def build_capcut_package(
             register=register_draft,
             replace_existing=replace_draft,
         )
+        pending_draft_install.unlink(missing_ok=True)
     return CapCutPackage(
         root=output_dir,
         scenes_dir=scenes_dir,

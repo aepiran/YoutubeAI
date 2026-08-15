@@ -15,8 +15,10 @@ from PyInstaller.utils.hooks import (
 PROJECT_DIR = Path(SPECPATH).resolve()
 APP_NAME = "FootageVideoBuilder"
 ASSETS_DIR = PROJECT_DIR / "assets"
+FETCHER_DIR = PROJECT_DIR.parent / "stock-footage-fetcher"
 
 datas = [(str(ASSETS_DIR), "assets")]
+datas += [(str(FETCHER_DIR / "main.py"), "stock_fetcher")]
 datas += collect_data_files("whisper")
 for distribution in (
     "imageio",
@@ -31,6 +33,17 @@ for distribution in (
     datas += copy_metadata(distribution)
 
 hiddenimports = []
+hiddenimports += [
+    "stock_footage_app",
+    "gui_main_window",
+    "gui_dialogs",
+    "gui_runner",
+    "gui_settings",
+    "gui_theme",
+    "multi_source",
+    "footage_library",
+    "stock_fetcher_core",
+]
 for package in (
     "whisper",
     "transformers.models.clip",
@@ -47,7 +60,7 @@ icon = str(icon_path) if icon_path.is_file() else None
 
 a = Analysis(
     [str(PROJECT_DIR / "main.py")],
-    pathex=[str(PROJECT_DIR)],
+    pathex=[str(PROJECT_DIR), str(FETCHER_DIR)],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,

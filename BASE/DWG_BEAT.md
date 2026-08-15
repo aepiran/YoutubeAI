@@ -158,7 +158,7 @@ Journey direction and geographic progression
 Main visual motif
 Water motif
 Morning-light motif
-Ocean anchor beats when coastal
+Nếu primary ecosystem là gentle coast hoặc calm sea: sea-sunrise progression, thời điểm hero shot thấy rõ mặt trời trên biển và các supporting shot của sóng, phản chiếu, bờ biển
 Wildlife motif
 Human-trace motif
 Scripture motif
@@ -344,6 +344,46 @@ Khi video dùng gentle coast hoặc coastal watershed journey:
 
 Không dùng sunset thay sunrise, mặt trời giữa trưa, màu cam đỏ quá mạnh, lens flare dày đặc, timelapse nhanh hoặc cảnh cháy sáng.
 
+#### Hệ thống mặt trời mọc trên biển
+
+Khi `gentle coast` hoặc `calm sea` được khóa làm hệ sinh thái chính, mặt trời mọc trên biển phải trở thành một motif phát triển có chủ đích, không chỉ là một keyword xuất hiện thoáng qua. Video coast-led phải có đủ các trạng thái sau theo đúng thứ tự ánh sáng:
+
+```text
+blue-hour sea before sunrise
+→ pale light opening along the ocean horizon
+→ soft sun disc rising above the sea
+→ golden reflection stretching across calm water
+→ warm shoreline or slow aerial moving toward the open horizon
+```
+
+Ngân sách khuyến nghị cho video coast-led:
+
+- Sea, ocean, shoreline, coastal sky và chuyển động sóng nhẹ chiếm khoảng hai mươi lăm đến ba mươi lăm phần trăm tổng số beat.
+- Có ít nhất ba trạng thái khác nhau của motif mặt trời trên biển: trước khi mặt trời xuất hiện, mặt trời vừa vượt đường chân trời và ánh sáng phản chiếu trên mặt nước.
+- Có ít nhất một hero shot thấy rõ mặt trời mọc trên biển tại reframe, faith response hoặc benediction.
+- Có hai đến bốn supporting shot chỉ thấy tác động của mặt trời: vùng sáng chân trời, đường phản chiếu vàng, sóng bắt sáng, chim đi qua vùng sáng hoặc bờ biển dần ấm lên.
+- Không dùng quá hai beat liên tiếp cùng bố cục mặt trời nằm giữa khung hình. Luân phiên wide horizon, water detail, shoreline medium, wildlife và slow aerial.
+
+Các visual job ưu tiên:
+
+- Pause: biển xanh xám trước bình minh, đường chân trời còn tối, sóng rất nhẹ và chưa thấy mặt trời.
+- Reframe: vùng sáng mở ra trên chân trời hoặc đĩa mặt trời đầu tiên nhô lên khỏi mặt biển.
+- Scripture and Gratitude: tia sáng hoặc đường phản chiếu vàng bắt đầu chạm mặt nước, đá ven bờ hoặc chim biển bình thản.
+- Surrender: sóng nhỏ tiến vào rồi rút khỏi bờ, ánh sáng trải dài trên nước, không gian mở nhưng yên tĩnh.
+- Faith Response: bóng người rất nhỏ đi dọc bờ biển hoặc drone tiến chậm về đường chân trời đã sáng.
+- Benediction and CTA: hero shot mặt trời trên biển, đường phản chiếu ổn định và chuyển động máy tối thiểu để giữ dư âm bình an.
+
+Shot bank cho mặt trời trên biển:
+
+- Locked wide shot của đĩa mặt trời mềm vừa vượt đường chân trời trên mặt biển phẳng.
+- Medium shoreline shot với sóng nhỏ bắt ánh sáng vàng buổi sáng.
+- Close water detail của đường phản chiếu rung nhẹ trên gợn sóng.
+- Slow drone nâng dần để reveal mặt trời và đường chân trời biển rộng.
+- Coastal birds bay bình thản qua vùng sáng nhưng không che khuất mặt trời.
+- Small back-view figure hoặc distant silhouette đi dọc shoreline, luôn nhỏ hơn cảnh quan.
+
+Không chấp nhận cảnh được gắn nhãn sunrise nhưng có dấu hiệu sunset: màu đỏ cam đậm, ánh sáng cuối ngày, đám đông trên bãi biển, hoạt động vui chơi, nightlife, mặt trời chìm xuống nước hoặc mood du lịch nghỉ dưỡng. Ưu tiên blue-to-gold progression, mặt biển yên, bãi biển vắng, ánh sáng mềm và chuyển động chậm.
+
 ### Hệ thống nước
 
 Nước phải có chức năng cụ thể, không phải filler phong cảnh:
@@ -354,6 +394,7 @@ Nước phải có chức năng cụ thể, không phải filler phong cảnh:
 - Gentle waterfall: sức mạnh, phục hồi và breakthrough; không dùng thác dữ dội hoặc tourism spectacle.
 - Calm sea and shoreline: trao phó, không gian thuộc linh rộng mở, faith response và benediction.
 - Estuary and tidal river: điểm chuyển từ không gian biển rộng sang lời cầu nguyện cụ thể, hoặc từ hành trình nội tâm trở lại sự trao phó.
+- Sunrise over calm sea: hy vọng được nhìn thấy rõ, đức tin bước vào ngày mới và lời chúc phước mở ra trên đường chân trời.
 - Gentle rain: thành thật, release và chuyển tiếp; không dùng bão hoặc lũ.
 - Mist: chưa nhìn thấy toàn bộ con đường nhưng vẫn chờ đợi và tin cậy.
 
@@ -425,6 +466,7 @@ Gợi ý theo tuyến nội dung, không phải công thức bắt buộc:
 - Gratitude, Mercy and Grace: dawn meadow; dew, birds, wildflowers, small stream and sunlight across grass.
 - Seek God First and God’s Presence: forest path; Bible, first rays through trees, quiet stream and path becoming visible.
 - Peace and Anxiety: misty lake; ripples settling, reeds, resting birds, thinning mist and soft reflection.
+- Surrender, Faith and Benediction: gentle coast; blue-hour sea, sunrise over ocean horizon, golden reflection, quiet shoreline and slow forward aerial.
 - Strength, Healing and Restoration: mountain river; renewed water movement, new leaves, light after rain and steady forward path.
 - Guidance, Decisions and Work: forest path with river; forked trail, wooden bridge, winding river and light indicating direction.
 - Financial Provision: dawn meadow; water nourishing land, birds finding food, healthy growth and open countryside.
@@ -517,6 +559,7 @@ Reframe:
 - Distant back-view figure becoming still or subtly lifting toward the morning light; không thấy khuôn mặt.
 - A trail, shoreline hoặc horizon becoming visible.
 - Birds beginning to move, mist thinning hoặc first light touching water and grass.
+- Nếu hệ sinh thái đã khóa là gentle coast, phải bắt đầu cho thấy vùng sáng hoặc mép đĩa mặt trời xuất hiện trên đường chân trời biển; không thay bằng một sunrise đất liền chung chung.
 
 Scripture:
 
@@ -539,6 +582,7 @@ Confession and Surrender:
 - Open hands.
 - Distant bowed silhouette hoặc a small figure becoming still beside water, under a tree hoặc on a quiet trail.
 - Rain on leaves, wind easing, ripples settling hoặc release of breath.
+- Với gentle coast, ưu tiên sóng nhỏ tiến vào rồi rút khỏi bờ và đường phản chiếu vàng dần trải trên mặt biển như một chuyển động trao phó.
 - Cảnh trong phòng chỉ dùng khi gánh nặng cụ thể không thể truyền đạt đúng bằng cảnh ngoài trời.
 
 Core Thematic Prayer:
@@ -560,6 +604,7 @@ Faith Response:
 - Distant silhouette standing, back-view figure walking along a path, footsteps crossing a bridge hoặc small figure moving toward an open horizon.
 - Wider framing and warmer color.
 - Calm confidence, không phải chiến thắng phô trương.
+- Với gentle coast, dùng một bóng người nhỏ đi dọc bờ hoặc drone tiến chậm ra đường chân trời biển đã sáng; giữ mặt trời và hướng chuyển động nhất quán với các beat trước.
 
 Benediction and CTA:
 
@@ -567,6 +612,7 @@ Benediction and CTA:
 - Hold the emotional resolution.
 - Không dùng pointing gestures, subscribe animations hoặc footage bán hàng trong phần voice cầu nguyện.
 - Giữ cùng hero shot hoặc cùng hệ sinh thái qua CTA; ưu tiên calm water, open sky, sunlit meadow, gentle coast hoặc slow drone toward horizon.
+- Nếu video coast-led, Benediction phải ưu tiên một hero shot nhìn rõ mặt trời mọc trên biển hoặc đường phản chiếu vàng dẫn tới mặt trời; giữ shot đủ lâu và tiếp tục nó qua CTA.
 
 8. CÔNG THỨC TÌM FOOTAGE
 
@@ -600,6 +646,12 @@ Ví dụ:
 - waterfall forest morning
 - birds lake sunrise
 - meadow grass sunrise
+- ocean sunrise
+- sun rising ocean horizon
+- golden reflection sea
+- beach sunrise waves
+- coastline sunrise drone
+- birds ocean sunrise
 
 Không dùng các từ trừu tượng như divine favor, spiritual victory, God’s presence, emotional healing hoặc breakthrough làm search query. Chuyển chúng thành subject và movement cụ thể trước khi tìm.
 
@@ -612,6 +664,19 @@ Shot refinement: lake sunrise aerial
 ```
 
 Chỉ dùng refinement khi broad query chưa cho kết quả đúng. Không nhồi toàn bộ ba truy vấn thành một câu dài.
+
+Với video đã khóa `gentle coast` hoặc `calm sea`, dùng bộ truy vấn mặt trời trên biển theo visual job:
+
+```text
+Pause: blue hour calm sea, ocean horizon before sunrise
+Reframe: ocean sunrise, sun rising ocean horizon
+Scripture or Gratitude: golden reflection sea, sunlight ocean water
+Surrender: gentle waves sunrise, beach sunrise waves
+Faith Response: walking beach sunrise, coastline sunrise drone
+Benediction: sunrise over sea wide, calm ocean sunrise aerial
+```
+
+Không dùng toàn bộ bộ truy vấn này trong một beat. Mỗi beat vẫn tối đa ba hướng tìm; phân phối chúng xuyên suốt progression để mặt trời trên biển được nhìn thấy rõ, rồi được tiếp tục bằng ánh sáng, phản chiếu, sóng và chuyển động về đường chân trời.
 
 Mỗi beat nên có tối đa ba truy vấn, và ba truy vấn phải mở ra ba hướng tìm khác nhau:
 
@@ -731,6 +796,7 @@ tranh:
 - Ưu tiên lỗi phá tone, continuity, ngữ cảnh Christian, tính chân thật hoặc khả năng dựng.
 - Với human trace, mặc định loại face, close-up, eye contact và acting.
 - Với sunrise, loại sunset, midday, harsh flare và orange-red grading.
+- Với coast sunrise, loại crowded beach, resort, surfing, boats as main subject, tropical vacation look, rough waves và hidden sun khi beat yêu cầu hero shot.
 - Với drone, loại fast orbit, dive, hyperlapse và tourism spectacle.
 - Với water hoặc wildlife, loại storm, flood, violent movement, hunting và animal conflict.
 
@@ -782,6 +848,8 @@ B. Sacred Dawn Cinema
 - Detail, medium, wide và aerial được phối hợp để video có chiều sâu nhưng vẫn gần gũi.
 - Có motif chính và motif phụ được lặp có phát triển.
 - Mặt trời được thấy trực diện có chọn lọc; tác động của ánh sáng lên cảnh vật xuất hiện nhiều hơn hình mặt trời trực tiếp.
+- Nếu primary ecosystem là gentle coast hoặc calm sea, có ít nhất ba trạng thái liên tục: biển trước bình minh, mặt trời nhô rõ trên đường chân trời và phản chiếu vàng trên nước; Reframe hoặc Benediction phải có hero shot thấy rõ mặt trời trên biển.
+- Với video coast-led, cảnh biển, bờ biển hoặc bầu trời ven biển chiếm khoảng hai mươi lăm đến ba mươi lăm phần trăm số beat và không bị thay thế bằng lake, river hoặc meadow ở các beat chủ chốt.
 - Không biến video thành slideshow phong cảnh ngẫu nhiên, quảng cáo du lịch, phim tài liệu thiên nhiên hoặc montage người cầu nguyện.
 
 C. Continuity
@@ -822,6 +890,7 @@ F. Pexels and Pixabay readiness
 - Keyword dùng tiếng Anh đơn giản, mỗi cụm khoảng hai đến sáu từ.
 - Không có keyword thần học hoặc cảm xúc trừu tượng không thể nhìn thấy.
 - Truy vấn có thể nhập trực tiếp vào Pexels hoặc Pixabay.
+- Nếu video coast-led, ít nhất một truy vấn ở Reframe và một truy vấn ở Benediction phải chứa `ocean` hoặc `sea` cùng `sunrise`; không dùng từ chung chung như `morning nature` cho hero shot.
 - Kết quả mong muốn là video ngang, tối thiểu Full HD, đủ dài và không có watermark, logo hoặc text overlay.
 - Cột tranh ghi rõ lỗi cần loại vì không phụ thuộc vào negative search của nền tảng.
 - Nếu tìm ít kết quả, có phương án rút gọn hoặc đổi từ đồng nghĩa mà không phá hệ sinh thái.

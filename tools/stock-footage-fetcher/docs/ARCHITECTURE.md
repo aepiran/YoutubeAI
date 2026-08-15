@@ -5,7 +5,7 @@
 | Thành phần | Trách nhiệm |
 |---|---|
 | `load_env_file` | Nạp API key từ `.env` |
-| `load_rows` | Đọc và kiểm tra cấu trúc `footage.csv` |
+| `load_rows` | Đọc và kiểm tra cấu trúc `script_beat.csv` |
 | `search_query` | Lấy cụm từ khóa chính cho Pexels |
 | `positive_prompt` | Tạo prompt chấm điểm từ CSV |
 | `search_best_video` | Gọi API, phân trang và dừng sớm |
@@ -20,7 +20,7 @@
 flowchart TD
     A[Khởi động CLI] --> B[Nạp .env]
     B --> C[Đọc tham số và Project]
-    C --> D[Kiểm tra footage.csv]
+    C --> D[Kiểm tra script_beat.csv]
     D --> E[Nạp SigLIP 2 một lần]
     E --> F[Hàng đợi Beat]
     F --> G1[Worker Beat 1]

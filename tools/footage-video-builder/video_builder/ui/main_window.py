@@ -97,6 +97,7 @@ PROJECT_OPEN_ICON = ROOT_DIR / "assets" / "project-open.svg"
 NAV_EXPAND_ICON = ROOT_DIR / "assets" / "nav-expand.svg"
 NAV_COLLAPSE_ICON = ROOT_DIR / "assets" / "nav-collapse.svg"
 SETTINGS_ICON = ROOT_DIR / "assets" / "settings.svg"
+FIND_FOOTAGE_ICON = ROOT_DIR / "assets" / "find-footage.svg"
 HELP_ICON = ROOT_DIR / "assets" / "help.svg"
 REFRESH_ICON = ROOT_DIR / "assets" / "refresh.svg"
 PROJECT_STATE_FILENAME = "footage_builder_state.json"
@@ -149,6 +150,21 @@ def project_voice_directory(root: Path) -> Path:
         ),
         root / "audio",
     )
+
+
+def preferred_capcut_template(
+    saved_template: str,
+    existing_draft: dict | None,
+) -> Path:
+    """Prefer the current Settings choice over a stale draft manifest."""
+    selected = Path(saved_template) if saved_template else Path()
+    if selected.is_dir():
+        return selected
+    if existing_draft is not None:
+        stored = Path(str(existing_draft.get("template", "")))
+        if stored.is_dir():
+            return stored
+    return selected
 
 
 def inspect_timeline_health(timeline: list[dict]) -> list[dict]:
@@ -681,6 +697,19 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { background:#2b3b57; border-color:#a78bfa; }"
             "QPushButton:pressed { background:#35266b; border-color:#c4b5fd; }"
         )
+        self.find_footage_btn = QPushButton("Tìm footage")
+        self.find_footage_btn.setIcon(QIcon(str(FIND_FOOTAGE_ICON)))
+        self.find_footage_btn.setIconSize(QSize(22, 22))
+        self.find_footage_btn.setFixedHeight(34)
+        self.find_footage_btn.setMinimumWidth(122)
+        self.find_footage_btn.setToolTip(
+            "Mở Stock Footage Finder để tìm footage bất kỳ"
+        )
+        self.find_footage_btn.setAccessibleName("Tìm footage")
+        self.find_footage_btn.setStyleSheet(header_icon_style)
+        self.find_footage_btn.clicked.connect(
+            self._launch_footage_finder
+        )
         settings_btn = QPushButton()
         settings_btn.setIcon(QIcon(str(SETTINGS_ICON)))
         settings_btn.setIconSize(QSize(22, 22))
@@ -697,6 +726,7 @@ class MainWindow(QMainWindow):
         guide_btn.setAccessibleName("Hướng dẫn")
         guide_btn.setStyleSheet(header_icon_style)
         guide_btn.clicked.connect(self._show_guide)
+        layout.addWidget(self.find_footage_btn)
         layout.addWidget(settings_btn)
         layout.addWidget(guide_btn)
         return frame
@@ -999,7 +1029,7 @@ class MainWindow(QMainWindow):
         self.start_btn = QPushButton("◆  Phân tích kịch bản")
         self.start_btn.setObjectName("PrimaryButton")
         self.start_btn.setMinimumWidth(220)
-        self.start_btn.clicked.connect(self._prompt_analysis_mode)
+        self.start_btn.clicked.connect(self._prompt_analysis_action)
         self.start_btn.setToolTip(
             "Chọn để tiếp tục phân tích (dùng cache) hoặc phân tích lại từ đầu."
         )
@@ -1189,6 +1219,43 @@ class MainWindow(QMainWindow):
         )
         self.frozen_beat_scrollbar_spacer.setFixedHeight(bottom_margin)
 
+    def _launch_footage_finder(self) -> None:
+        """Open the standalone finder independently from the supplement workflow."""
+        if getattr(sys, "frozen", False):
+            program = sys.executable
+            arguments = ["--stock-footage-app"]
+            working_directory = str(Path(sys.executable).resolve().parent)
+        else:
+            fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
+            script_path = fetcher_root / "stock_footage_app.py"
+            if not script_path.is_file():
+                QMessageBox.warning(
+                    self,
+                    "Không tìm thấy Stock Footage Finder",
+                    f"Thiếu ứng dụng tại:\n{script_path}",
+                )
+                return
+            program = sys.executable
+            arguments = ["-u", str(script_path)]
+            working_directory = str(fetcher_root)
+
+        project_text = self.project_edit.text().strip()
+        if project_text:
+            arguments.extend(["--project", str(Path(project_text).expanduser())])
+
+        result = QProcess.startDetached(
+            program,
+            arguments,
+            working_directory,
+        )
+        started = result[0] if isinstance(result, tuple) else bool(result)
+        if not started:
+            QMessageBox.warning(
+                self,
+                "Không thể mở Stock Footage Finder",
+                "Không thể khởi động ứng dụng tìm footage.",
+            )
+
     def _launch_footage_downloader(self) -> None:
         if self._running:
             QMessageBox.warning(
@@ -1209,16 +1276,17 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Footage đã đủ", "Không có Beat nào cần tải bổ sung.")
             return
 
-        fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
-        if not (fetcher_root / "stock_footage_app.py").is_file() and not (
-            fetcher_root / "pyproject.toml"
-        ).is_file():
-            QMessageBox.warning(
-                self,
-                "Không tìm thấy Stock Footage Finder",
-                f"Thiếu downloader tại:\n{fetcher_root}",
-            )
-            return
+        if getattr(sys, "frozen", False):
+            fetcher_root = Path(sys.executable).resolve().parent
+        else:
+            fetcher_root = ROOT_DIR.parent / "stock-footage-fetcher"
+            if not (fetcher_root / "stock_footage_app.py").is_file():
+                QMessageBox.warning(
+                    self,
+                    "Không tìm thấy Stock Footage Finder",
+                    f"Thiếu downloader tại:\n{fetcher_root}",
+                )
+                return
 
         answer = QMessageBox.question(
             self,
@@ -1239,9 +1307,12 @@ class MainWindow(QMainWindow):
         environment = QProcessEnvironment.systemEnvironment()
         environment.insert("PYTHONUNBUFFERED", "1")
         self.footage_process.setProcessEnvironment(environment)
-        script_path = fetcher_root / "stock_footage_app.py"
         program = sys.executable
-        arguments = ["-u", str(script_path), "--project", str(plan_file)]
+        if getattr(sys, "frozen", False):
+            arguments = ["--stock-footage-app", "--project", str(plan_file)]
+        else:
+            script_path = fetcher_root / "stock_footage_app.py"
+            arguments = ["-u", str(script_path), "--project", str(plan_file)]
         self.footage_process.setWorkingDirectory(str(fetcher_root))
 
         self._running = True
@@ -1278,7 +1349,7 @@ class MainWindow(QMainWindow):
             (root / directory).mkdir(exist_ok=True)
         templates = {
             "script.txt": "SCRIPT:\n",
-            "footage.csv": (
+            "script_beat.csv": (
                 "ma_beat,y_chinh,tu_khoa,hinh_can_tim,tranh\n"
             ),
         }
@@ -1479,18 +1550,10 @@ class MainWindow(QMainWindow):
             ):
                 existing_draft = None
         saved_template = self.builder_settings.capcut_template_dir
-        template_path = (
-            Path(saved_template)
-            if saved_template
-            else Path()
+        template_path = preferred_capcut_template(
+            saved_template, existing_draft
         )
         saved_draft_name = self._saved_capcut_draft_name.strip()
-        if existing_draft is not None:
-            stored_template = Path(
-                str(existing_draft.get("template", ""))
-            )
-            if stored_template.is_dir():
-                template_path = stored_template
         if not template_path.is_dir():
             QMessageBox.warning(
                 self,
@@ -1553,7 +1616,7 @@ class MainWindow(QMainWindow):
         root = self._project_path()
         if self.project_edit.text().strip():
             self.script_edit.setText(str(root / "script.txt"))
-            self.beats_edit.setText(str(root / "footage.csv"))
+            self.beats_edit.setText(str(root / "script_beat.csv"))
             self.footage_edit.setText(str(root / "video"))
             self.output_edit.setText(str(root / "video_output.mp4"))
             self.voice_edit.clear()
@@ -1605,7 +1668,7 @@ class MainWindow(QMainWindow):
         script_ready = self._count_script_sections(
             root / "script.txt"
         )
-        beat_count = self._count_csv_rows(root / "footage.csv")
+        beat_count = self._count_csv_rows(root / "script_beat.csv")
         principal_rows = (
             (
                 f"Kịch bản ({'sẵn sàng' if script_ready else 'thiếu'})",
@@ -1613,7 +1676,7 @@ class MainWindow(QMainWindow):
             ),
             (
                 f"Beat metadata ({beat_count} Beat)",
-                root / "footage.csv",
+                root / "script_beat.csv",
             ),
             (f"Audio ({voice_count}/1)", project_voice_directory(root)),
             (f"Kho footage ({footage_count})", root / "video"),
@@ -1690,7 +1753,7 @@ class MainWindow(QMainWindow):
                 "Chọn kịch bản",
                 "Text (*.txt);;Tất cả file (*)",
             )
-        elif name == "footage.csv":
+        elif name == "script_beat.csv":
             self._choose_file(
                 self.beats_edit,
                 "Chọn file Beat CSV",
@@ -1727,7 +1790,7 @@ class MainWindow(QMainWindow):
                     "Chọn transcript",
                     "Text (*.txt);;Tất cả file (*)",
                 )
-            elif name == "footage.csv":
+            elif name == "script_beat.csv":
                 self._choose_file(
                     self.beats_edit,
                     "Chọn file Beat CSV",
@@ -1741,7 +1804,7 @@ class MainWindow(QMainWindow):
         name = path.name.lower()
         if name == "script.txt":
             self.script_edit.setText(str(path))
-        elif name == "footage.csv":
+        elif name == "script_beat.csv":
             self.beats_edit.setText(str(path))
             self._refresh_beat_table()
         elif (
@@ -1763,7 +1826,7 @@ class MainWindow(QMainWindow):
             return
         values = self.builder_settings
         payload = {
-            "schema_version": 4,
+            "schema_version": 6,
             "vision_model": values.vision_model,
             "resolution": values.resolution,
             "analysis_workers": values.analysis_workers,
@@ -1782,6 +1845,10 @@ class MainWindow(QMainWindow):
             "music_dir": values.music_dir,
             "music_cue_sheet": values.music_cue_sheet,
             "capcut_use_main_music": values.capcut_use_main_music,
+            "caption_max_lines": values.caption_max_lines,
+            "caption_max_characters_per_line": (
+                values.caption_max_characters_per_line
+            ),
         }
         path = self._project_config_path()
         try:
@@ -1904,6 +1971,18 @@ class MainWindow(QMainWindow):
                 ),
                 capcut_use_main_music=bool(
                     payload.get("capcut_use_main_music", current.capcut_use_main_music)
+                ),
+                caption_max_lines=int(
+                    payload.get("caption_max_lines", current.caption_max_lines)
+                ),
+                caption_max_characters_per_line=int(
+                    payload.get(
+                        "caption_max_characters_per_line",
+                        payload.get(
+                            "caption_max_words_per_line",
+                            current.caption_max_characters_per_line,
+                        ),
+                    )
                 ),
             )
             if (
@@ -3090,6 +3169,9 @@ class MainWindow(QMainWindow):
             arguments.extend([
                 "--export-capcut-package",
                 "--no-capcut-reference-video",
+                "--caption-max-lines", str(settings.caption_max_lines),
+                "--caption-max-characters-per-line",
+                str(settings.caption_max_characters_per_line),
                 "--capcut-output-dir",
                 str(self._capcut_output_dir or self._project_path() / "capcut_package"),
             ])
@@ -3198,25 +3280,38 @@ class MainWindow(QMainWindow):
         self.process.setWorkingDirectory(working_directory)
         self.process.start(program, process_arguments)
 
-    def _prompt_analysis_mode(self) -> None:
+    def _prompt_analysis_action(self) -> None:
         if self._running:
             QMessageBox.warning(
-                self, "Tác vụ đang chạy", "Một tác vụ khác đang chạy. Vui lòng đợi."
+                self,
+                "Tác vụ đang chạy",
+                "Một tác vụ khác đang chạy. Vui lòng đợi.",
             )
             return
-        answer = QMessageBox.question(
-            self,
-            "Chế độ phân tích",
-            "Bạn muốn tiếp tục phân tích (dùng cache) hay phân tích lại từ đầu (bỏ qua cache)?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Chế độ phân tích")
+        dialog.setText("Bạn muốn phân tích theo cách nào?")
+        dialog.setInformativeText(
+            "Resume: tiếp tục và dùng cache hiện có.\n"
+            "Start: phân tích lại từ đầu và bỏ qua cache."
         )
-        if answer == QMessageBox.StandardButton.Yes:
+        resume_button = dialog.addButton(
+            "Resume", QMessageBox.ButtonRole.AcceptRole
+        )
+        start_button = dialog.addButton(
+            "Start", QMessageBox.ButtonRole.DestructiveRole
+        )
+        dialog.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(resume_button)
+        dialog.exec()
+        clicked = dialog.clickedButton()
+        if clicked == resume_button:
             self._start_build("analyze")
-        elif answer == QMessageBox.StandardButton.No:
+        elif clicked == start_button:
             self._start_build("analyze_force")
-        # If Cancel, do nothing
 
+    def _prompt_analysis_mode(self) -> None:
+        self._prompt_analysis_action()
 
     def _confirm_full_reanalysis(self) -> None:
         answer = QMessageBox.question(
@@ -3867,6 +3962,8 @@ class MainWindow(QMainWindow):
             self.supplement_btn.setEnabled(
                 not self._running and inputs_ready and analysis_ready
             )
+        if hasattr(self, "find_footage_btn"):
+            self.find_footage_btn.setEnabled(True)
         export_enabled = not self._running and analysis_ready
         if hasattr(self, "export_btn"):
             self.export_btn.setEnabled(export_enabled)
@@ -3912,7 +4009,7 @@ class MainWindow(QMainWindow):
             self,
             "Hướng dẫn nhanh",
             "1. Mở Project có sẵn hoặc tạo Project mới.\n"
-            "2. Thêm Voice, script.txt, footage.csv và Video Footage.\n"
+            "2. Thêm Voice, script.txt, script_beat.csv và Video Footage.\n"
             "3. Kiểm tra thời lượng Cut, Whisper và Resolution.\n"
             "4. Nhấn Phân tích để tạo Timeline và lưu Report.\n"
             "5. Khi phân tích hoàn tất, nhấn Render Video để tạo file MP4.",
@@ -3956,6 +4053,11 @@ class MainWindow(QMainWindow):
         self.settings.setValue("music_dir", values.music_dir)
         self.settings.setValue("music_cue_sheet", values.music_cue_sheet)
         self.settings.setValue("capcut_use_main_music", values.capcut_use_main_music)
+        self.settings.setValue("capcut/caption_max_lines", values.caption_max_lines)
+        self.settings.setValue(
+            "capcut/caption_max_characters_per_line",
+            values.caption_max_characters_per_line,
+        )
 
     def _restore_settings(self) -> None:
         project = self.settings.value("project", "", type=str)
@@ -4044,6 +4146,20 @@ class MainWindow(QMainWindow):
             ),
             capcut_use_main_music=self.settings.value(
                 "capcut_use_main_music", defaults.capcut_use_main_music, type=bool
+            ),
+            caption_max_lines=self.settings.value(
+                "capcut/caption_max_lines",
+                defaults.caption_max_lines,
+                type=int,
+            ),
+            caption_max_characters_per_line=self.settings.value(
+                "capcut/caption_max_characters_per_line",
+                self.settings.value(
+                    "capcut/caption_max_words_per_line",
+                    defaults.caption_max_characters_per_line,
+                    type=int,
+                ),
+                type=int,
             ),
         )
         self._load_project_settings()

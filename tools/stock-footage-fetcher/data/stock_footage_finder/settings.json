@@ -14,5 +14,8 @@
   "min_height": 1080,
   "max_pixabay_downloads": 50,
   "dry_run": false,
-  "last_project_dir": "E:\\DawnWithGod\\scripts\\0808"
+  "use_local_library": true,
+  "auto_archive_library": true,
+  "library_dir": "T:/dwg-footage",
+  "last_project_dir": "E:\\DawnWithGod\\scripts\\0810"
 }

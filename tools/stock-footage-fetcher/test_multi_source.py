@@ -304,7 +304,7 @@ class ManifestTests(unittest.TestCase):
             item = MODULE.Selection("H01", 1, candidate("pexels", "42", 0.8))
             item.status = "downloaded"
             item.filename = "H01_PEXELS_42.mp4"
-            MODULE.save_manifest(path, [item], csv_path=root / "footage.csv")
+            MODULE.save_manifest(path, [item], csv_path=root / "script_beat.csv")
             payload = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(payload["selections"][0]["beat_id"], "H01")
             self.assertTrue(path.with_suffix(".csv").is_file())

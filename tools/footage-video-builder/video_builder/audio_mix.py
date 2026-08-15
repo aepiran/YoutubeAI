@@ -134,6 +134,45 @@ def cue_rows_for_duration(cues: list[MusicCue], duration: float) -> list[dict]:
                 "repeat": False,
             }
         )
+    if not rows or not cues:
+        return rows
+    target_duration = max(0.0, float(duration))
+    last_row = max(
+        rows,
+        key=lambda row: float(row["timeline_start"]) + float(row["duration"]),
+    )
+    cursor = float(last_row["timeline_start"]) + float(last_row["duration"])
+    if cursor >= target_duration - 0.001:
+        return rows
+    last_cue = next(
+        cue for cue in cues if cue.code == str(last_row["cue"])
+    )
+    loop_duration = last_cue.duration
+    extension_index = 1
+    while cursor < target_duration - 0.001:
+        segment_duration = min(loop_duration, target_duration - cursor)
+        rows.append(
+            {
+                "cue": f"{last_cue.code}-OUTRO-{extension_index:02d}",
+                "path": str(last_cue.track),
+                "name": last_cue.track.name,
+                "role": "dwg_outro_extension",
+                "section": "DWG OUTRO",
+                "timeline_start": round(cursor, 6),
+                "duration": round(segment_duration, 6),
+                "source_start": 0.0,
+                "source_duration": round(segment_duration, 6),
+                "gain_db": last_cue.gain_db,
+                "volume": db_to_volume(last_cue.gain_db),
+                "fade_in": min(last_cue.fade_in, segment_duration),
+                "fade_out": min(last_cue.fade_out, segment_duration),
+                "target_music_lufs": last_cue.target_lufs,
+                "notes": "Auto-extended final cue to match minimum video duration",
+                "repeat": True,
+            }
+        )
+        cursor += segment_duration
+        extension_index += 1
     return rows
 
 

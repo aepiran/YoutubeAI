@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from video_builder.audio_mix import (
+    MusicCue,
     cue_rows_for_duration,
     load_music_cues,
     parse_timestamp,
@@ -50,6 +51,30 @@ class DwgMusicCueTests(unittest.TestCase):
             self.assertEqual(rows[0]["fade_in"], 2.0)
             self.assertEqual(rows[0]["fade_out"], 3.0)
             self.assertEqual(Path(rows[0]["path"]), track.resolve())
+
+    def test_final_cue_repeats_to_cover_minimum_video_duration(self) -> None:
+        cue = MusicCue(
+            code="C08",
+            start=0.0,
+            end=10.0,
+            track=Path("closing.mp3"),
+            section="Closing",
+            fade_in=2.0,
+            fade_out=3.0,
+            gain_db=-20.0,
+            target_lufs=-35.0,
+            notes="soft",
+        )
+
+        rows = cue_rows_for_duration([cue], 25.0)
+
+        self.assertEqual(
+            [row["duration"] for row in rows], [10.0, 10.0, 5.0]
+        )
+        self.assertEqual(rows[-1]["role"], "dwg_outro_extension")
+        self.assertEqual(
+            rows[-1]["timeline_start"] + rows[-1]["duration"], 25.0
+        )
 
 
 if __name__ == "__main__":

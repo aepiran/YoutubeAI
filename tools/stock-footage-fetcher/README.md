@@ -1,7 +1,7 @@
 # Stock Footage Finder
 
 Ứng dụng desktop tìm, chấm và tải stock video Pexels + Pixabay theo
-`footage.csv`. Giao diện sử dụng phong cách dark dashboard tương tự
+`script_beat.csv`. Giao diện sử dụng phong cách dark dashboard tương tự
 Footage Finder AI.
 
 ## Chạy giao diện
@@ -18,13 +18,36 @@ Bạn cũng có thể chạy `stock_footage_app.py` hoặc `run_gui.bat`.
 
 Trong ứng dụng:
 
-1. Chọn thư mục project hoặc file `footage.csv`.
+1. Chọn thư mục project hoặc file `script_beat.csv`.
 2. Mở Settings và nhập Pexels/Pixabay API key.
 3. Bật Dry Run nếu muốn chỉ kiểm tra lựa chọn.
 4. Bấm **Start Search**.
 5. Xem queue, log và kết quả trong `selected-footage.json`.
 
 Video được lưu trong thư mục `video` cạnh CSV.
+
+## Kho footage tổng
+
+Ứng dụng có thể dùng một `FootageLibrary` chung như một nguồn footage local,
+tương tự Pexels/Pixabay. Cấu hình đường dẫn tại **Settings > Kho footage**.
+Mặc định, mỗi lượt chạy sẽ:
+
+1. Tìm và chấm footage local bằng cùng `Candidate` và model thị giác như kết
+   quả Pexels/Pixabay.
+2. Chỉ gọi nguồn online khi kho local chưa đủ footage đạt ngưỡng.
+3. Tự động lưu footage vừa tải online vào kho sau khi job hoàn tất.
+4. Nhận diện trùng trong kho bằng `provider:video_id` và SHA-256.
+
+Catalog được lưu tại `FootageLibrary/catalog.sqlite`; video chuẩn nằm trong
+`FootageLibrary/assets` và thumbnail dùng để tìm local nằm trong
+`FootageLibrary/thumbnails`. Footage sẵn có trong project không bị tự động di
+chuyển; tên file và workflow project vẫn giữ nguyên. Khi lấy footage từ kho,
+ứng dụng dùng hard link nếu cùng ổ đĩa hoặc copy nếu khác ổ đĩa.
+
+Sau khi hoàn tất một project cũ, nút **Bổ sung vào kho footage** sẽ nhập riêng
+các file đã tải từ Pexels/Pixabay. Footage lấy lại từ Library và footage manual
+được bỏ qua. Các file trùng chỉ cập nhật metadata/lịch sử, không tạo thêm asset
+trong kho.
 
 ## Build Windows
 
@@ -46,8 +69,8 @@ Executable có hai chế độ: GUI và worker nền, vì vậy máy sử dụng
 Python riêng.
 
 Lần tìm đầu tiên cần Internet để tải model SigLIP. Model được lưu tại
-`data/stock_footage_finder/model-cache` cạnh ứng dụng và được tái sử dụng cho
-các lần chạy sau.
+`.cache/huggingface/hub` cạnh ứng dụng và được tái sử dụng cho các lần chạy sau.
+Bạn có thể đổi thư mục này trong **Settings > Kho footage > Model cache**.
 
 ## Chạy CLI
 

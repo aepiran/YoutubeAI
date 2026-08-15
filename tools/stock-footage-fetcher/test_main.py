@@ -72,7 +72,7 @@ class PaginationTests(unittest.TestCase):
 
             MODULE.resolve_project_paths(args)
 
-            self.assertEqual(args.csv, project / "footage.csv")
+            self.assertEqual(args.csv, project / "script_beat.csv")
             self.assertEqual(args.output_dir, project / "video")
 
     def test_env_file_loads_api_key(self) -> None:

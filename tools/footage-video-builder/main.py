@@ -108,6 +108,10 @@ def run_cli(argv: list[str] | None = None) -> int:
             ),
             capcut_hook_volume_db=args.capcut_hook_volume_db,
             capcut_body_music=parse_capcut_body_music(args.capcut_body_music),
+            caption_max_lines=args.caption_max_lines,
+            caption_max_characters_per_line=(
+                args.caption_max_characters_per_line
+            ),
             analyze_sections=(
                 set(args.analyze_section)
                 if args.analyze_section
@@ -125,6 +129,11 @@ def run_cli(argv: list[str] | None = None) -> int:
 def main() -> int:
     configure_utf8_stdio()
     argv = sys.argv[1:]
+    if argv and argv[0] in {"--stock-footage-app", "--stock-worker"}:
+        from stock_footage_app import main as stock_footage_main
+
+        stock_argv = argv[1:] if argv[0] == "--stock-footage-app" else argv
+        return stock_footage_main(stock_argv)
     if not argv or argv == ["--ui"]:
         try:
             from video_builder.ui.bootstrap import run_app

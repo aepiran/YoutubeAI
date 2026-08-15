@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QStackedWidget,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -70,6 +71,8 @@ class BuilderUiSettings:
     music_dir: str = ""
     music_cue_sheet: str = ""
     capcut_use_main_music: bool = False
+    caption_max_lines: int = 4
+    caption_max_characters_per_line: int = 14
 
 
 class ModelDownloadWorker(QThread):
@@ -125,6 +128,10 @@ class SettingsDialog(QDialog):
             music_dir=self.music_dir_edit.text().strip(),
             music_cue_sheet=self.music_cue_sheet_edit.text().strip(),
             capcut_use_main_music=self.capcut_use_main_music_check.isChecked(),
+            caption_max_lines=self.caption_max_lines_spin.value(),
+            caption_max_characters_per_line=(
+                self.caption_max_characters_spin.value()
+            ),
         )
 
     def _build_ui(self, settings: BuilderUiSettings) -> None:
@@ -185,6 +192,20 @@ class SettingsDialog(QDialog):
         item.setSizeHint(QSize(172, 46))
         self.nav_list.addItem(item)
         self.pages.addWidget(page)
+
+    def _icon_button(
+        self,
+        icon: QStyle.StandardPixmap,
+        tooltip: str,
+        accessible_name: str,
+    ) -> QPushButton:
+        button = QPushButton()
+        button.setIcon(self.style().standardIcon(icon))
+        button.setIconSize(QSize(18, 18))
+        button.setFixedSize(36, 34)
+        button.setToolTip(tooltip)
+        button.setAccessibleName(accessible_name)
+        return button
 
     def _page(self, title: str, subtitle: str = "") -> tuple[QWidget, QVBoxLayout]:
         page = QWidget()
@@ -319,14 +340,30 @@ class SettingsDialog(QDialog):
 
         self.capcut_template_combo = QComboBox()
         self.capcut_template_combo.setMinimumWidth(320)
-        self.capcut_import_btn = QPushButton("Import template...")
+        self.capcut_import_btn = self._icon_button(
+            QStyle.StandardPixmap.SP_DialogOpenButton,
+            "Import template Draft CapCut",
+            "Import template",
+        )
         self.capcut_import_btn.clicked.connect(self._import_capcut_template)
-        self.capcut_apply_btn = QPushButton("Apply mặc định")
+        self.capcut_delete_btn = self._icon_button(
+            QStyle.StandardPixmap.SP_TrashIcon,
+            "Xóa template đang chọn khỏi thư viện app",
+            "Xóa template",
+        )
+        self.capcut_delete_btn.setObjectName("DangerButton")
+        self.capcut_delete_btn.clicked.connect(self._delete_capcut_template)
+        self.capcut_apply_btn = self._icon_button(
+            QStyle.StandardPixmap.SP_DialogApplyButton,
+            "Lưu template đang chọn làm mặc định",
+            "Apply mặc định",
+        )
         self.capcut_apply_btn.setObjectName("PrimaryButton")
         self.capcut_apply_btn.clicked.connect(self.accept)
         template_row = QHBoxLayout()
         template_row.addWidget(self.capcut_template_combo, 1)
         template_row.addWidget(self.capcut_import_btn)
+        template_row.addWidget(self.capcut_delete_btn)
         template_row.addWidget(self.capcut_apply_btn)
 
         self.capcut_drafts_edit = QLineEdit(settings.capcut_drafts_root)
@@ -340,6 +377,30 @@ class SettingsDialog(QDialog):
         drafts_row = QHBoxLayout()
         drafts_row.addWidget(self.capcut_drafts_edit, 1)
         drafts_row.addWidget(self.capcut_drafts_btn)
+
+        self.caption_max_lines_spin = QSpinBox()
+        self.caption_max_lines_spin.setRange(1, 8)
+        self.caption_max_lines_spin.setValue(settings.caption_max_lines)
+        self.caption_max_lines_spin.setToolTip(
+            "Caption vượt giới hạn sẽ được tách thành cue tiếp theo."
+        )
+        self.caption_max_characters_spin = QSpinBox()
+        self.caption_max_characters_spin.setRange(1, 99)
+        self.caption_max_characters_spin.setMinimumWidth(80)
+        self.caption_max_characters_spin.setKeyboardTracking(False)
+        self.caption_max_characters_spin.setValue(
+            settings.caption_max_characters_per_line
+        )
+        self.caption_max_characters_spin.setToolTip(
+            "Số ký tự tối đa trên mỗi dòng; chỉ xuống dòng tại khoảng trắng."
+        )
+        caption_layout_row = QHBoxLayout()
+        caption_layout_row.addWidget(QLabel("Max lines"))
+        caption_layout_row.addWidget(self.caption_max_lines_spin)
+        caption_layout_row.addSpacing(16)
+        caption_layout_row.addWidget(QLabel("Max characters / line"))
+        caption_layout_row.addWidget(self.caption_max_characters_spin)
+        caption_layout_row.addStretch(1)
 
         self.capcut_use_main_music_check = QCheckBox(
             "Sử dụng nhạc nền chung của Project cho CapCut"
@@ -404,6 +465,7 @@ class SettingsDialog(QDialog):
         body_music_box.addLayout(body_music_buttons)
 
         form.addRow("Draft folder", drafts_row)
+        form.addRow("Caption layout", caption_layout_row)
         form.addRow("", self.capcut_use_main_music_check)
         form.addRow("Hook music", hook_music_row)
         form.addRow("Body music", body_music_box)
@@ -693,6 +755,14 @@ class SettingsDialog(QDialog):
         except ValueError:
             return False
 
+    def _is_deletable_template(self, path: Path) -> bool:
+        try:
+            resolved = path.resolve()
+            library = self._template_library_dir().resolve()
+        except OSError:
+            return False
+        return resolved.is_dir() and resolved.parent == library
+
     def _copy_template_to_library(self, source_path: Path) -> Path:
         source_path = source_path.resolve()
         library = self._template_library_dir()
@@ -766,6 +836,11 @@ class SettingsDialog(QDialog):
                 "Chưa có template. Bấm Import template để thêm Draft CapCut mẫu."
             )
 
+        if hasattr(self, "capcut_delete_btn"):
+            self.capcut_delete_btn.setEnabled(
+                bool(path) and self._is_deletable_template(Path(path))
+            )
+
     def _import_capcut_template(self) -> None:
         source = QFileDialog.getExistingDirectory(
             self,
@@ -792,6 +867,46 @@ class SettingsDialog(QDialog):
             )
             return
         self._populate_template_combo(str(target))
+        self._refresh_template_path_label()
+
+    def _delete_capcut_template(self) -> None:
+        template = self._selected_template_path()
+        if not template:
+            QMessageBox.information(
+                self,
+                "Chua co template",
+                "Chua co template CapCut nao de xoa.",
+            )
+            return
+        template_path = Path(template)
+        if not self._is_deletable_template(template_path):
+            QMessageBox.warning(
+                self,
+                "Khong the xoa template",
+                "Chi co the xoa template da import vao thu vien cua app.\n"
+                f"Template dang chon:\n{template_path}",
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            "Xoa template CapCut",
+            "Xoa template CapCut nay khoi thu vien cua app?\n\n"
+            f"{template_path}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            shutil.rmtree(template_path)
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Khong the xoa template",
+                f"Khong the xoa template:\n{exc}",
+            )
+            return
+        self._populate_template_combo("")
         self._refresh_template_path_label()
 
     def accept(self) -> None:
