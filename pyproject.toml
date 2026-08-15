@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dwg-pipeline"
+version = "0.1.0"
+description = "Gemini-assisted Dawn With God script-to-TTS-to-visual-beat pipeline"
+readme = "dwg_pipeline/README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "google-genai>=1.0.0",
+]
+
+[project.scripts]
+dwg-pipeline = "dwg_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dwg_pipeline*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/dwg_pipeline"]
+

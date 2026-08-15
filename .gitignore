@@ -48,3 +48,7 @@ venv/
 .vscode/
 *.swp
 
+StoryFlow Studio
+dwg_pipeline
+video-flow
+thuandv

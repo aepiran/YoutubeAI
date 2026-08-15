@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-14T18:10:38.093276+00:00",
+  "tracks": [
+    {
+      "track_id": "0fe64a6992b46f32",
+      "filename": "No.7 Alone With My Thoughts - Esther Abrami.mp3",
+      "title": "No.7 Alone With My Thoughts Esther Abrami",
+      "sha256": "0fe64a6992b46f32f57fb81f021770b92c72839fa416395390ff7cb639c8e939",
+      "size_bytes": 5684282,
+      "duration_seconds": 142.052,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.429618+00:00"
+    },
+    {
+      "track_id": "8ce6e66238546dc2",
+      "filename": "07_Rest_Now_Eugenio_Mininni_Mixkit.mp3",
+      "title": "07 Rest Now Eugenio Mininni Mixkit",
+      "sha256": "8ce6e66238546dc29a273a6b50f4e3db6cdb4aab409f7cc366ec31646fcfa675",
+      "size_bytes": 9594970,
+      "duration_seconds": 299.769,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.530268+00:00"
+    },
+    {
+      "track_id": "2fcb36e7e58c4b6b",
+      "filename": "06_Skyline_Eugenio_Mininni_Mixkit.mp3",
+      "title": "06 Skyline Eugenio Mininni Mixkit",
+      "sha256": "2fcb36e7e58c4b6bc1505b7980237fdad86696589572a958bb6ee2084c592cc5",
+      "size_bytes": 6589843,
+      "duration_seconds": 205.846,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.622600+00:00"
+    },
+    {
+      "track_id": "30232da0b9521ed3",
+      "filename": "05_Forest_Mist_Whispers_Alejandro_Magana_Mixkit.mp3",
+      "title": "05 Forest Mist Whispers Alejandro Magana Mixkit",
+      "sha256": "30232da0b9521ed35e009162bfe7c63d06c9c8e4ca81ea5137ab63a9dc66cd98",
+      "size_bytes": 4830022,
+      "duration_seconds": 150.936,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.732361+00:00"
+    },
+    {
+      "track_id": "db34bc5dcfa5fdf2",
+      "filename": "04_Tapis_Eugenio_Mininni_Mixkit.mp3",
+      "title": "04 Tapis Eugenio Mininni Mixkit",
+      "sha256": "db34bc5dcfa5fdf237d334035e6933408aa07519032cb395daa791ce8d132884",
+      "size_bytes": 5223117,
+      "duration_seconds": 163.154,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.818944+00:00"
+    },
+    {
+      "track_id": "3ffae7ccd5ea6f61",
+      "filename": "03_Vastness_Andrew_Ev_Mixkit.mp3",
+      "title": "03 Vastness Andrew Ev Mixkit",
+      "sha256": "3ffae7ccd5ea6f612f75efdf9a8318ccce79a5e4f355b26e233631330a57660f",
+      "size_bytes": 7356125,
+      "duration_seconds": 229.82,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:37.913293+00:00"
+    },
+    {
+      "track_id": "90b462a5eb37eb3b",
+      "filename": "02_Wedding_01_Francisco_Alvear_Mixkit.mp3",
+      "title": "02 Wedding 01 Francisco Alvear Mixkit",
+      "sha256": "90b462a5eb37eb3b2b21baa46a175510a39c9349f856e27796942d004d6e1a79",
+      "size_bytes": 4668979,
+      "duration_seconds": 145.778,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:38.000034+00:00"
+    },
+    {
+      "track_id": "f50d822cb8d6cb3d",
+      "filename": "01_Valley_Sunset_Alejandro_Magana_Mixkit.mp3",
+      "title": "01 Valley Sunset Alejandro Magana Mixkit",
+      "sha256": "f50d822cb8d6cb3da8bc9d6cfccc020786fb0c25e2c222a75d11ca06091050e7",
+      "size_bytes": 4280902,
+      "duration_seconds": 133.776,
+      "source": "Mixkit",
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "license": "Mixkit Stock Music Free License",
+      "license_url": "https://mixkit.co/license/#musicFree",
+      "imported_at": "2026-08-14T18:10:38.093197+00:00"
+    }
+  ]
+}

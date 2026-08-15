@@ -60,6 +60,18 @@ Essential indoor context: zero to two percent
 Human facial close-up or direct emotional acting: zero percent
 ```
 
+Khi video chọn **gentle coast** hoặc **coastal watershed journey** làm thế giới hình ảnh, áp dụng thêm ngân sách riêng sau; đây là phân bổ bên trong tổng thể visual, không cộng cơ học với các nhóm ở trên:
+
+```text
+Sea, coast, shoreline, estuary and ocean horizon: about thirty to forty percent
+Clearly visible sun rising over the ocean: about six to ten percent
+Sunlight reflected on sea, waves, wet sand or coastal rocks: about twelve to eighteen percent
+River, estuary and stream continuation: about fifteen to twenty percent
+Foothills, valley, mountain trail and inland landscape: about fifteen to twenty percent
+```
+
+Không dùng nhóm water chung để thay thế hoàn toàn cảnh biển khi đã khóa hệ coastal. Với video khoảng sáu mươi đến tám mươi lăm beat, phải có ba đến năm **ocean anchor beats** ở các bước cảm xúc khác nhau; mỗi anchor phải khác nhau về ánh sáng, cỡ cảnh, chuyển động hoặc visual job.
+
 Theo cỡ cảnh và góc máy:
 
 ```text
@@ -108,8 +120,11 @@ Trước khi chia beat, bắt buộc đọc toàn bộ kịch bản và xác đ�
 - Hai đến bốn motif phụ có thể lặp lại có chủ đích.
 - Hệ sinh thái hình ảnh chính: coast, forest, mountain, field, river, lake hoặc countryside.
 - Tối đa một hệ sinh thái bổ trợ tương thích về mùa, thời tiết, màu sắc và địa hình.
+- Có thể chọn coastal watershed journey như một hệ sinh thái liên hoàn gồm biển, bờ biển, cửa sông, sông, suối, thung lũng và chân đồi thuộc cùng một vùng địa lý.
+- Nếu chọn coastal watershed journey, xác định hướng kể chuyện: coast to inland, mountain source to sea hoặc ocean bookend.
 - Một water motif cụ thể: still lake, forest stream, winding river, gentle waterfall, calm sea hoặc light rain.
 - Một morning-light motif cụ thể và thời điểm mặt trời được nhìn thấy rõ lần đầu.
+- Với hệ coastal, xác định ba đến năm ocean anchor beats gồm opening atmosphere, first visible sunrise, reflected light hoặc shoreline movement và closing ocean hero shot.
 - Một wildlife motif phù hợp tự nhiên với hệ sinh thái.
 - Một human-trace motif duy nhất hoặc một nhóm hành động tiết chế có continuity.
 - Thời điểm trong ngày, mùa, thời tiết, bảng màu, hướng ánh sáng và ngôn ngữ máy quay.
@@ -117,6 +132,8 @@ Trước khi chia beat, bắt buộc đọc toàn bộ kịch bản và xác đ�
 - Danh sách visual bị cấm riêng cho chủ đề của video.
 
 Visual motif chính phải được rút ra từ chủ đề, không được chọn tùy ý.
+
+Với kịch bản morning prayer tổng quát không có một hệ sinh thái bắt buộc rõ hơn, ưu tiên đánh giá **ocean bookend** trước các phương án khác. Nếu script xoay quanh surrender, peace, faith, mercy, a new beginning hoặc starting the day with God, coastal watershed journey là lựa chọn mặc định trừ khi hình ảnh biển làm yếu đi motif trung tâm. Với guidance, protection hoặc breakthrough, vẫn có thể dùng forest path hoặc mountain river làm chính nhưng nên cân nhắc tuyến mountain source to sea để giữ nhận diện bình minh trên biển.
 
 Ví dụ:
 
@@ -137,9 +154,11 @@ Starting emotional state
 Ending emotional state
 Core Scripture and supporting Scriptures
 Primary ecosystem and compatible secondary ecosystem
+Journey direction and geographic progression
 Main visual motif
 Water motif
 Morning-light motif
+Ocean anchor beats when coastal
 Wildlife motif
 Human-trace motif
 Scripture motif
@@ -183,6 +202,7 @@ Giai đoạn một, Pause and emotional recognition:
 - Detail shot hoặc medium landscape; chỉ dùng một bóng người rất nhỏ trong khung rộng nếu cần neo cảm xúc.
 - Chuyển động rất nhẹ.
 - Gọi đúng nỗi đau nhưng không kéo dài hình ảnh tuyệt vọng.
+- Với coastal journey, có thể mở bằng biển xanh xám trước bình minh, sóng nhẹ, đường chân trời còn tối hoặc bờ đá ẩm trong first light.
 
 Giai đoạn hai, Scripture and gratitude:
 
@@ -190,6 +210,7 @@ Giai đoạn hai, Scripture and gratitude:
 - Tia sáng qua cây, sương tan, chim bắt đầu chuyển động, nước và các chi tiết của sự sống buổi sáng.
 - Bible hoặc bàn tay chỉ xuất hiện như accent ngắn trong ánh sáng tự nhiên, ưu tiên ngoài trời hoặc sát không gian mở.
 - Hình ảnh chi tiết thiên nhiên xen với establishing shot rộng.
+- Với coastal journey, đây là vị trí ưu tiên cho lần mặt trời mọc trên biển được nhìn thấy rõ đầu tiên; sau đó chuyển sang ánh sáng phản chiếu trên sóng, cát ướt, bờ đá hoặc cửa sông.
 
 Giai đoạn ba, Surrender and core prayer:
 
@@ -198,6 +219,7 @@ Giai đoạn ba, Surrender and core prayer:
 - Nếu cần bối cảnh trong phòng, dùng ngắn, đúng nội dung rồi chuyển ra cảnh đệm thiên nhiên trước khi đổi nhân vật hoặc địa điểm.
 - Không gian và cỡ cảnh dần mở hơn.
 - Ánh sáng tăng nhưng vẫn dịu.
+- Coastal journey có thể đi từ bờ biển qua cửa sông, theo dòng sông vào thung lũng hoặc theo chiều ngược lại; dùng natural detail làm cầu nối giữa các địa hình.
 
 Giai đoạn bốn, Intercession and faith response:
 
@@ -213,6 +235,7 @@ Giai đoạn năm, Benediction and CTA:
 - Một hero shot đủ mạnh để giữ dư âm cầu nguyện.
 - CTA không được làm hình ảnh đột ngột chuyển sang năng lượng quảng cáo.
 - Ưu tiên calm water, open sky, sunlit meadow, gentle coast hoặc drone tiến chậm về chân trời.
+- Nếu biển là motif mở đầu, ưu tiên trở lại cùng bờ biển hoặc cùng hướng đường chân trời trong ánh sáng vàng ấm để tạo ocean bookend.
 
 ### Đồng bộ với cấu trúc DWG_SCRIPT
 
@@ -311,6 +334,14 @@ blue hour
 
 Mặt trời trên đồng cỏ phù hợp với gratitude, mercy, blessings và provision. Mặt trời trên biển phù hợp với surrender, peace, faith và benediction. Mặt trời vượt núi phù hợp với protection, strength và breakthrough. Ánh sáng xuyên rừng phù hợp với guidance, Scripture và God’s presence.
 
+Khi video dùng gentle coast hoặc coastal watershed journey:
+
+- Mặt trời mọc trên biển phải là một motif phát triển, không chỉ là cảnh kết thúc.
+- Ít nhất một ocean sunrise anchor xuất hiện trong opening hoặc reframe, một anchor bằng ánh sáng phản chiếu xuất hiện trong gratitude hoặc core prayer và một ocean hero shot xuất hiện trong benediction.
+- Có thể thấy mặt trời trực diện ở nhiều thời điểm nếu bố cục và visual job khác nhau, nhưng không xếp quá hai cảnh có đĩa mặt trời rõ liền nhau.
+- Xen giữa các cảnh mặt trời trực diện bằng sóng bắt sáng, cát ướt, bờ đá, chim biển, cửa sông, mặt nước phản chiếu hoặc shoreline movement.
+- Giữ cùng hướng mặt trời và bảng màu khi trở lại biển ở cuối video để người xem cảm nhận đó là cùng một buổi sáng.
+
 Không dùng sunset thay sunrise, mặt trời giữa trưa, màu cam đỏ quá mạnh, lens flare dày đặc, timelapse nhanh hoặc cảnh cháy sáng.
 
 ### Hệ thống nước
@@ -322,10 +353,28 @@ Nước phải có chức năng cụ thể, không phải filler phong cảnh:
 - Winding river: dẫn đường, hành trình, chu cấp và lời cầu nguyện mở rộng.
 - Gentle waterfall: sức mạnh, phục hồi và breakthrough; không dùng thác dữ dội hoặc tourism spectacle.
 - Calm sea and shoreline: trao phó, không gian thuộc linh rộng mở, faith response và benediction.
+- Estuary and tidal river: điểm chuyển từ không gian biển rộng sang lời cầu nguyện cụ thể, hoặc từ hành trình nội tâm trở lại sự trao phó.
 - Gentle rain: thành thật, release và chuyển tiếp; không dùng bão hoặc lũ.
 - Mist: chưa nhìn thấy toàn bộ con đường nhưng vẫn chờ đợi và tin cậy.
 
-Không chuyển tùy ý giữa hồ, biển, thác và sông. Mỗi video chọn một water system chính nằm trong hệ sinh thái đã khóa, ví dụ misty lake, mountain river hoặc gentle coast.
+Không chuyển tùy ý giữa hồ, biển, thác và sông chỉ vì từng cảnh đẹp. Mỗi video chọn một water system chính nằm trong hệ sinh thái đã khóa, ví dụ misty lake, mountain river, gentle coast hoặc coastal watershed journey.
+
+Coastal watershed journey được phép nối biển, cửa sông, sông, suối và chân đồi khi tất cả cảnh giữ được cùng mùa, thời tiết, địa hình, hướng sáng và bảng màu. Chuyển tiếp phải đi qua một mắt xích hợp lý như shoreline, estuary, river bend, stream rocks, valley mist hoặc aerial reveal; không cắt trực tiếp từ tropical beach sang alpine waterfall.
+
+Ba tuyến kể chuyện được phép:
+
+```text
+Coast to inland:
+ocean blue hour → ocean sunrise → shoreline → estuary → river → stream → foothill path
+
+Mountain source to sea:
+mountain mist → stream → river → valley → estuary → ocean horizon → golden coast
+
+Ocean bookend:
+ocean blue hour and sunrise → estuary → river or stream → foothill journey → return to the same golden coast
+```
+
+Ocean bookend là tuyến mặc định khi mục tiêu là tăng nhận diện mặt trời mọc trên biển cho Dawn With God. Tuyến này cho phép biển mở đầu và kết thúc, còn sông, suối và đồi núi tạo progression ở phần giữa.
 
 ### Hệ thống drone và cỡ cảnh
 
@@ -353,6 +402,7 @@ wide or drone establishing
 ### Motif budget
 
 - Một main motif xuất hiện ba đến năm lần và mỗi lần phải phát triển về ánh sáng, độ rộng, chuyển động hoặc trạng thái.
+- Nếu main motif là ocean sunrise, ba đến năm lần xuất hiện phải được phân bổ qua opening, reframe, reflected-light development và benediction; không dùng cùng một bố cục đường chân trời lặp lại.
 - Hai đến bốn supporting motifs, mỗi motif xuất hiện hai đến ba lần.
 - Scripture motif xuất hiện hai đến ba lần, gắn với core Scripture hoặc faith response.
 - Human-trace motif chỉ xuất hiện tại các điểm cảm xúc quan trọng.
@@ -366,8 +416,8 @@ wide or drone establishing
 - Giữ continuity về thời điểm buổi sáng, hướng ánh sáng, mùa, thời tiết, địa hình, màu sắc và hệ sinh thái chính.
 - Không nhảy tùy ý giữa tropical beach, snowy mountain, desert, European forest và rice field trong cùng một video.
 - Chọn một hệ sinh thái chủ đạo và tối đa một hệ sinh thái bổ trợ có màu sắc, mùa và thời tiết tương thích.
-- Các hệ sinh thái khuyến nghị gồm misty lake cho peace và anxiety; mountain river cho strength, restoration và breakthrough; dawn meadow cho gratitude, grace và provision; gentle coast cho surrender, faith và benediction; forest path cho guidance, decisions và God’s presence.
-- Không cố đưa đồng cỏ, biển, thác, núi và hồ vào cùng một video. Mỗi cảnh đẹp nhưng nằm ngoài hệ sinh thái đã khóa phải bị loại.
+- Các hệ sinh thái khuyến nghị gồm misty lake cho peace và anxiety; mountain river cho strength, restoration và breakthrough; dawn meadow cho gratitude, grace và provision; gentle coast cho surrender, faith và benediction; forest path cho guidance, decisions và God’s presence; coastal watershed journey cho video cần hành trình rộng từ bình minh trên biển đến sông, suối và đồi núi.
+- Không cố đưa đồng cỏ, biển, thác, núi và hồ vào cùng một video như các địa điểm rời rạc. Chỉ phối hợp biển, cửa sông, sông, suối và chân đồi khi chúng thuộc coastal watershed journey đã khóa và có cầu nối địa lý rõ ràng.
 
 Gợi ý theo tuyến nội dung, không phải công thức bắt buộc:
 
@@ -380,6 +430,7 @@ Gợi ý theo tuyến nội dung, không phải công thức bắt buộc:
 - Financial Provision: dawn meadow; water nourishing land, birds finding food, healthy growth and open countryside.
 - Family and Children: meadow with nearby lake; distant family silhouettes, joined hands, birds and a protected open path.
 - Bible Verse Devotional: forest or lake; Scripture accents, natural light on pages and creation imagery reflecting the passage.
+- Morning Prayer, Surrender and Peace: ocean bookend; sea before dawn, visible ocean sunrise, estuary and river progression, then a warm return to the coast.
 - Một chuỗi có cùng nhân vật phải hợp lý về tuổi, giới tính, hoàn cảnh và hành động.
 - Nếu không thể giữ cùng nhân vật, chuyển qua establishing nature shot hoặc natural detail trước khi đổi người.
 - Không cắt trực tiếp giữa hai nhân vật khác nhau đang thực hiện cùng một hành động nếu khiến người xem tưởng đó là cùng một người.
@@ -388,6 +439,7 @@ Gợi ý theo tuyến nội dung, không phải công thức bắt buộc:
 - Cảnh trong phòng phải khớp nhiệt độ màu và hướng sáng với cảnh thiên nhiên liền trước hoặc liền sau.
 - Không quay lại hình ảnh bão tối, khóc hoặc cô lập sau khi kịch bản đã đạt đến bình an, trừ khi lời thoại thật sự mở một lời cầu thay mới.
 - Một stock đẹp nhưng phá continuity hoặc sai tinh thần cầu nguyện phải bị loại.
+- Với coastal watershed journey, continuity được đánh giá theo toàn bộ lưu vực ven biển, không bắt buộc mọi cảnh phải nhìn thấy biển. Mỗi lần đổi địa hình phải có shoreline, estuary, river, stream, valley hoặc natural detail làm cầu nối.
 - Trong cùng một sequence, ưu tiên hướng chuyển động tương thích: nước cùng hướng chảy, bước chân cùng tiến về vùng sáng, drone cùng tiến hoặc nâng dần, chim không đổi hướng gây jump cut.
 - Nếu phải đảo hướng chuyển động rõ rệt, chèn natural detail, sky, mist hoặc establishing shot làm cầu nối.
 - Mặt trời, bóng đổ và phản chiếu trên nước phải hợp lý về hướng sáng giữa các cảnh liền nhau.
@@ -533,6 +585,12 @@ Công thức mở rộng:
 Ví dụ:
 
 - misty lake sunrise
+- ocean sunrise horizon
+- golden waves morning
+- shoreline sunrise aerial
+- estuary morning aerial
+- river valley first light
+- stream foothills morning
 - grass wind morning
 - silhouette lake dawn
 - open Bible sunrise
@@ -590,6 +648,10 @@ Nếu một truy vấn cho ít kết quả, rút ngắn truy vấn hoặc thay m
 
 Ví dụ tốt:
 
+ocean sunrise horizon, golden waves morning, shoreline sunrise aerial
+
+estuary morning aerial, river valley first light, stream foothills morning
+
 gentle forest stream morning, birds over misty lake dawn, distant walker forest trail wide
 
 Ví dụ không tốt:
@@ -617,6 +679,7 @@ woman praying window, woman prayer bedroom, praying woman indoor sunlight
 - Drone orbit nhanh, dive, hyperlapse, dramatic cliff flight hoặc aerial mang cảm giác quảng cáo du lịch.
 - Thác dữ dội, lũ, sóng bão, động vật săn mồi, chiến đấu hoặc wildlife action gây căng thẳng.
 - Nhiều cảnh mặt trời trực diện, drone hoặc wide landscape giống nhau đứng liên tiếp.
+- Chuỗi biển, sông, suối và núi không có shoreline, estuary, river bend, valley hoặc natural detail làm cầu nối địa lý.
 
 10. QUY TẮC CSV
 
@@ -709,6 +772,9 @@ B. Sacred Dawn Cinema
 - Ánh sáng và không gian phát triển có chủ đích.
 - Nature, water, weather, wildlife và natural light chiếm khoảng tám mươi lăm đến chín mươi phần trăm số beat.
 - Water chiếm khoảng hai mươi lăm đến ba mươi phần trăm theo chủ thể; wildlife khoảng tám đến mười phần trăm.
+- Nếu đã chọn coastal watershed journey, sea, coast, shoreline, estuary và ocean horizon chiếm khoảng ba mươi đến bốn mươi phần trăm; không được dùng sông hoặc hồ để thay quota biển.
+- Coastal video có ba đến năm ocean anchor beats, gồm opening hoặc reframe, reflected-light development và benediction hero shot.
+- Mặt trời mọc trên biển nhìn thấy rõ chiếm khoảng sáu đến mười phần trăm; ánh sáng phản chiếu trên biển và bờ biển chiếm khoảng mười hai đến mười tám phần trăm.
 - Restrained human traces chiếm khoảng bảy đến mười phần trăm; Scripture accents khoảng ba đến năm phần trăm.
 - Footage trong phòng mặc định bằng không và không vượt khoảng hai phần trăm khi hoàn cảnh trung tâm bắt buộc.
 - Không có facial close-up, profile close-up hoặc direct emotional acting.
@@ -722,6 +788,9 @@ C. Continuity
 
 - Thời điểm, màu sắc, mùa, thời tiết và bối cảnh không mâu thuẫn.
 - Hệ sinh thái chính nhất quán; hệ sinh thái bổ trợ không phá mùa, thời tiết hoặc bảng màu.
+- Coastal watershed journey có hướng kể chuyện đã khóa: coast to inland, mountain source to sea hoặc ocean bookend.
+- Mọi chuyển đổi biển, cửa sông, sông, suối và chân đồi đều có cầu nối địa lý hoặc natural detail hợp lý.
+- Nếu dùng ocean bookend, cảnh biển kết thúc khớp bờ biển, hướng sáng và bảng màu với cảnh biển mở đầu nhưng đã phát triển sang golden morning.
 - Chuyển nhân vật hoặc chuyển từ indoor ra outdoor có cảnh đệm thiên nhiên phù hợp.
 - Không quay lại visual tuyệt vọng sau khi cảm xúc đã được giải quyết, trừ khi script yêu cầu.
 - Cảnh trước và sau có thể nối tự nhiên.
@@ -756,6 +825,7 @@ F. Pexels and Pixabay readiness
 - Kết quả mong muốn là video ngang, tối thiểu Full HD, đủ dài và không có watermark, logo hoặc text overlay.
 - Cột tranh ghi rõ lỗi cần loại vì không phụ thuộc vào negative search của nền tảng.
 - Nếu tìm ít kết quả, có phương án rút gọn hoặc đổi từ đồng nghĩa mà không phá hệ sinh thái.
+- Với coastal video, keyword bao phủ đủ ocean sunrise, reflected coastal light, shoreline hoặc estuary, không chỉ river, lake và forest.
 
 G. CSV integrity
 
