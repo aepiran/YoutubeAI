@@ -469,6 +469,51 @@ class FootageWorkflowService:
             len(rows),
         )
 
+    @staticmethod
+    def write_supplement_request(
+        project: Project, missing_beats: tuple[str, ...] | list[str]
+    ) -> Path:
+        """Write the original search rows for Beats missing from a video plan."""
+
+        rows = _load_beat_rows(project.path_for("beat_file"))
+        requested = {
+            str(beat_id).strip().upper() for beat_id in missing_beats if str(beat_id).strip()
+        }
+        selected = [row for row in rows if row["ma_beat"] in requested]
+        found = {row["ma_beat"] for row in selected}
+        unknown = sorted(requested - found)
+        if unknown:
+            raise FootageWorkflowError(
+                "Beat thiếu footage không có trong footage.csv: " + ", ".join(unknown)
+            )
+        if not selected:
+            raise FootageWorkflowError("Không có Beat thiếu footage để tạo file bổ sung.")
+        output = project.root / "footage_supplement.csv"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        handle = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8-sig",
+            newline="",
+            delete=False,
+            dir=output.parent,
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+        )
+        temporary = Path(handle.name)
+        try:
+            with handle:
+                writer = csv.DictWriter(handle, fieldnames=FOOTAGE_COLUMNS)
+                writer.writeheader()
+                writer.writerows(
+                    {column: row[column] for column in FOOTAGE_COLUMNS}
+                    for row in selected
+                )
+            os.replace(temporary, output)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        return output
+
 
 def parse_queries(value: str, maximum: int = 3) -> list[str]:
     clean = (value or "").strip()

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from ...core.media import probe_audio_duration
+from ...core.script_text import extract_script_body
 from .service import Project
 
 
@@ -36,6 +37,8 @@ class ProjectMetricsService:
     def snapshot(self, project: Project) -> ProjectMetrics:
         script_path = self._preferred_script(project)
         script = self._read_text(script_path)
+        if script_path == project.path_for("raw_script"):
+            script = extract_script_body(script)
         audio_path = project.path_for("audio_file")
         subtitle_path = project.path_for("subtitle_file")
         duration = self.duration_probe(audio_path) if audio_path.is_file() else None

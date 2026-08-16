@@ -14,6 +14,23 @@ from storyflow_studio.modules.workspace import (
 
 
 class ProjectMetricsServiceTests(unittest.TestCase):
+    def test_raw_script_metrics_ignore_title_and_script_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = WorkspaceService().create_project(
+                directory, "Metrics", "metrics", AppSettings()
+            )
+            project.path_for("raw_script").write_text(
+                "TITLE:\nIgnored title words\n\nSCRIPT:\nHello world.",
+                encoding="utf-8",
+            )
+
+            metrics = ProjectMetricsService(
+                duration_probe=lambda path: None
+            ).snapshot(project)
+
+            self.assertEqual(metrics.word_count, 2)
+            self.assertEqual(metrics.character_count, 12)
+
     def test_metrics_prefer_tts_script_and_fallback_to_srt_duration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = WorkspaceService().create_project(

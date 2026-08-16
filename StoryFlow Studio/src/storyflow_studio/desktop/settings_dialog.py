@@ -352,6 +352,18 @@ class SettingsDialog(QDialog):
                 self._browse_row(self.tts_dna, self._browse_tts_dna, "Choose…"),
             )
         )
+        self.screen_srt_dna = QLineEdit(settings.screen_dna_path)
+        self.screen_srt_dna.setPlaceholderText(
+            "Leave empty to use the built-in Screen SRT DNA"
+        )
+        dna_layout.addWidget(
+            self._field(
+                "Screen SRT DNA (Optional)",
+                self._browse_row(
+                    self.screen_srt_dna, self._browse_screen_srt_dna, "Choose…"
+                ),
+            )
+        )
         layout.addWidget(dna)
 
         api = QGroupBox("Voice API")
@@ -889,6 +901,60 @@ class SettingsDialog(QDialog):
         visual_note.setWordWrap(True)
         visual_grid.addWidget(visual_note, 2, 0, 1, 2)
         layout.addWidget(visual_group)
+
+        capcut_group = QGroupBox("CapCut Draft")
+        capcut_grid = QGridLayout(capcut_group)
+        self._configure_grid(capcut_grid, 2)
+        self.builder_capcut_template = QLineEdit(settings.capcut_template_dir)
+        self.builder_capcut_template.setPlaceholderText(
+            "CapCut template folder containing draft_content.json"
+        )
+        self.builder_capcut_drafts_root = QLineEdit(settings.capcut_drafts_root)
+        self.builder_capcut_drafts_root.setPlaceholderText(
+            "CapCut Drafts folder; defaults to the template parent"
+        )
+        self.builder_capcut_register = QCheckBox(
+            "Register generated Draft in CapCut (Windows)"
+        )
+        self.builder_capcut_register.setChecked(settings.capcut_register_draft)
+        capcut_grid.addWidget(
+            self._field(
+                "Template Draft",
+                self._browse_row(
+                    self.builder_capcut_template,
+                    self._browse_capcut_template,
+                    "Browse",
+                ),
+            ),
+            0,
+            0,
+            1,
+            2,
+        )
+        capcut_grid.addWidget(
+            self._field(
+                "CapCut Drafts Root",
+                self._browse_row(
+                    self.builder_capcut_drafts_root,
+                    self._browse_capcut_drafts_root,
+                    "Browse",
+                ),
+            ),
+            1,
+            0,
+            1,
+            2,
+        )
+        capcut_grid.addWidget(self.builder_capcut_register, 2, 0, 1, 2)
+        capcut_note = QLabel(
+            "StoryFlow copies the selected template, embeds scenes/audio/captions, "
+            "and only replaces Drafts carrying its ownership marker. Close CapCut "
+            "before exporting when registry registration is enabled."
+        )
+        capcut_note.setObjectName("SettingsDescription")
+        capcut_note.setWordWrap(True)
+        capcut_grid.addWidget(capcut_note, 3, 0, 1, 2)
+        layout.addWidget(capcut_group)
         layout.addStretch(1)
         return self._scroll_page(page)
 
@@ -974,6 +1040,13 @@ class SettingsDialog(QDialog):
     def _browse_tts_dna(self) -> None:
         self._choose_file("Select TTS DNA", self.tts_dna, "Markdown (*.md);;All (*)")
 
+    def _browse_screen_srt_dna(self) -> None:
+        self._choose_file(
+            "Select Screen SRT DNA",
+            self.screen_srt_dna,
+            "Markdown (*.md);;All (*)",
+        )
+
     def _browse_beat_dna(self) -> None:
         self._choose_file("Select Beat DNA", self.beat_dna, "Markdown (*.md);;All (*)")
 
@@ -992,6 +1065,24 @@ class SettingsDialog(QDialog):
         )
         if selected:
             self.music_library.setText(selected)
+
+    def _browse_capcut_template(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Select CapCut Template Draft",
+            self.builder_capcut_template.text(),
+        )
+        if selected:
+            self.builder_capcut_template.setText(selected)
+
+    def _browse_capcut_drafts_root(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Select CapCut Drafts Root",
+            self.builder_capcut_drafts_root.text(),
+        )
+        if selected:
+            self.builder_capcut_drafts_root.setText(selected)
 
     @Slot()
     def _import_downloaded_music(self) -> None:
@@ -1094,9 +1185,11 @@ class SettingsDialog(QDialog):
                 role_instructions=self.role_instructions.toPlainText(),
                 recent_projects=list(self.original.workspace.recent_projects),
                 last_project=self.original.workspace.last_project,
+                workflow_mode=self.original.workspace.workflow_mode,
             ),
             tts=TTSSettings(
                 dna_path=self.tts_dna.text(),
+                screen_dna_path=self.screen_srt_dna.text(),
                 api_base_url=self.tts_base_url.text(),
                 api_key=self.tts_api_key.text(),
                 provider=self.tts_provider.text(),
@@ -1155,5 +1248,8 @@ class SettingsDialog(QDialog):
                 local_models_only=self.builder_local_models.isChecked(),
                 scene_threshold=self.builder_scene_threshold.value(),
                 scene_min_seconds=self.builder_scene_min.value(),
+                capcut_template_dir=self.builder_capcut_template.text(),
+                capcut_drafts_root=self.builder_capcut_drafts_root.text(),
+                capcut_register_draft=self.builder_capcut_register.isChecked(),
             ),
         ).normalized()

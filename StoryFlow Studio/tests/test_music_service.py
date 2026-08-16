@@ -17,6 +17,7 @@ from storyflow_studio.modules.music import (
     MusicCue,
     MusicWorkflowError,
     MusicWorkflowService,
+    MusicDNAPlan,
     format_music_timestamp,
     parse_and_validate_music_cues,
     parse_music_timestamp,
@@ -57,6 +58,45 @@ def cue_rows() -> list[dict]:
 class FakeDNAService:
     def generate(self, *args, **kwargs):
         return cue_rows()
+
+
+class RecommendationDNAService:
+    def generate(self, *args, **kwargs):
+        return MusicDNAPlan(
+            cue_rows(),
+            [
+                {
+                    "section_id": "S01",
+                    "cue_start": 1,
+                    "cue_end": 1,
+                    "purpose": "Opening prayer",
+                    "mood": ["peaceful", "hopeful"],
+                    "energy": "low",
+                    "tempo": "slow",
+                    "instruments": ["piano", "ambient strings"],
+                    "avoid": ["vocals"],
+                    "selected_track": "calm.mp3",
+                    "confidence": 0.55,
+                    "alternatives": ["warm.mp3"],
+                    "rationale": "The library has no ideal hopeful lift.",
+                    "needs_more_music": True,
+                    "search_queries": ["hopeful prayer piano instrumental"],
+                }
+            ],
+            [
+                {
+                    "section_id": "S01",
+                    "reason": "A better hopeful lift is recommended.",
+                    "desired_mood": ["hopeful", "warm"],
+                    "energy": "low",
+                    "tempo": "slow",
+                    "instruments": ["piano"],
+                    "avoid": ["vocals"],
+                    "minimum_duration_seconds": 10,
+                    "search_queries": ["hopeful prayer piano instrumental"],
+                }
+            ],
+        )
 
 
 class FakeRenderer:
@@ -183,6 +223,67 @@ class MusicWorkflowServiceTests(unittest.TestCase):
             self.assertEqual(rows[1]["start"], "00:04.000")
             self.assertEqual(rows[1]["target_music_lufs"], "-34.5")
             self.assertEqual(len(renderer.cues), 2)
+
+    def test_workflow_writes_script_analysis_and_can_replace_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "library"
+            library.mkdir()
+            tracks = []
+            for name in ("calm.mp3", "warm.mp3"):
+                (library / name).write_bytes(b"audio")
+                tracks.append({"filename": name, "duration_seconds": 60})
+            (library / "music_library.json").write_text(
+                json.dumps({"schema_version": 1, "tracks": tracks}),
+                encoding="utf-8",
+            )
+            project = WorkspaceService().create_project(
+                root / "workspace", "Music Analysis", "music-analysis", AppSettings()
+            )
+            project.path_for("tts_script").write_text(
+                "A gentle prayer.", encoding="utf-8"
+            )
+            project.path_for("subtitle_file").write_text(
+                "1\n00:00:00,000 --> 00:00:10,000\nA gentle prayer.\n",
+                encoding="utf-8",
+            )
+            project.path_for("audio_file").write_bytes(b"narration")
+            service = MusicWorkflowService(
+                ai_service=object(),
+                dna_service=RecommendationDNAService(),
+                renderer=FakeRenderer(),
+                duration_probe=lambda _path: 10.0,
+            )
+            settings = AppSettings(
+                music=MusicSettings(library_folder=str(library), enabled=True)
+            )
+
+            result = service.run(
+                project, settings, lambda _progress: None, CancellationToken()
+            )
+
+            self.assertTrue(result.analysis_file.is_file())
+            self.assertTrue(result.recommendations_file.is_file())
+            self.assertEqual(result.recommendation_count, 1)
+            analysis = json.loads(result.analysis_file.read_text(encoding="utf-8"))
+            self.assertEqual(analysis["sections"][0]["selected_track"], "calm.mp3")
+            self.assertEqual(
+                analysis["recommendations"][0]["search_queries"],
+                ["hopeful prayer piano instrumental"],
+            )
+
+            with self.assertRaisesRegex(MusicWorkflowError, "Generate Again"):
+                service.run(
+                    project, settings, lambda _progress: None, CancellationToken()
+                )
+            replaced = service.run(
+                project,
+                settings,
+                lambda _progress: None,
+                CancellationToken(),
+                replace_existing=True,
+            )
+            self.assertEqual(replaced.recommendation_count, 1)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg is not installed")
     def test_ffmpeg_renderer_creates_music_only_mp3(self) -> None:

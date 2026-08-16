@@ -9,6 +9,7 @@ import math
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -206,6 +207,8 @@ class VideoBuilderService:
             self.duration_probe,
             self.scene_detector,
             config,
+            progress,
+            cancellation,
         )
         semantics = _load_beat_semantics(project.path_for("beat_file"))
         progress(
@@ -471,6 +474,7 @@ class VideoBuilderService:
         cancellation: Cancellation,
         *,
         replace_existing: bool = False,
+        draft_name: str | None = None,
     ) -> CapCutExportResult:
         review = self.review(project, settings)
         if review.missing_beats:
@@ -488,6 +492,7 @@ class VideoBuilderService:
                 progress,
                 cancellation,
                 replace_existing=replace_existing,
+                draft_name=draft_name,
             )
         except CapCutExportError as exc:
             raise VideoBuilderWorkflowError(str(exc)) from exc
@@ -569,6 +574,8 @@ def _load_inventory(
     duration_probe: DurationProbe,
     scene_detector: SceneDetector,
     config: VideoBuilderSettings,
+    progress: Callable[[VideoBuilderProgress], None],
+    cancellation: Cancellation,
 ) -> dict[str, list[_Source]]:
     known = {str(beat["code"]).upper() for beat in beats}
     metadata = _manifest_metadata(project.path_for("footage_manifest"))
@@ -576,39 +583,91 @@ def _load_inventory(
     directory = project.path_for("footage_dir")
     if not directory.is_dir():
         return result
+    candidates: list[tuple[Path, str]] = []
     for path in sorted(directory.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in VIDEO_EXTENSIONS:
             continue
         code = _filename_beat(path, known)
         if code is None:
             continue
-        probed = duration_probe(path)
-        item = metadata.get(path.name, {})
-        manifest_duration = item.get("duration")
-        duration = probed or manifest_duration or config.max_cut_seconds
-        width = int(item.get("width") or 0)
-        height = int(item.get("height") or 0)
-        try:
-            scenes = scene_detector.detect(
+        candidates.append((path, code))
+    if not candidates:
+        return result
+
+    cancellation.raise_if_cancelled()
+    worker_count = min(config.analysis_workers, len(candidates))
+    inspected: list[tuple[str, _Source] | None] = [None] * len(candidates)
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="storyflow-analysis",
+    ) as executor:
+        futures = {
+            executor.submit(
+                _inspect_inventory_source,
                 path,
-                max(0.1, float(duration)),
-                config.scene_threshold,
-                config.scene_min_seconds,
+                metadata.get(path.name, {}),
+                duration_probe,
+                scene_detector,
+                config,
+            ): (index, code, path)
+            for index, (path, code) in enumerate(candidates)
+        }
+        for completed, future in enumerate(as_completed(futures), start=1):
+            cancellation.raise_if_cancelled()
+            index, code, path = futures[future]
+            inspected[index] = (code, future.result())
+            percent = 5 + int(20 * completed / len(candidates))
+            progress(
+                VideoBuilderProgress(
+                    "video_plan",
+                    "running",
+                    percent,
+                    f"Analyzed footage {completed}/{len(candidates)} · {path.name}",
+                )
             )
-        except (OSError, ValueError, VisualAnalysisError):
-            scenes = (SceneRange(0, 0.0, max(0.1, float(duration))),)
-        result[code].append(
-            _Source(
-                path,
-                max(0.1, float(duration)),
-                probed is not None,
-                width,
-                height,
-                _technical_score(probed is not None, width, height, config),
-                scenes,
-            )
-        )
+
+    # Futures complete out of order; append by the original sorted path order so
+    # identical inputs continue to produce deterministic timeline candidates.
+    for item in inspected:
+        if item is not None:
+            code, source = item
+            result[code].append(source)
     return result
+
+
+def _inspect_inventory_source(
+    path: Path,
+    metadata: dict[str, float | int],
+    duration_probe: DurationProbe,
+    scene_detector: SceneDetector,
+    config: VideoBuilderSettings,
+) -> _Source:
+    probed = duration_probe(path)
+    manifest_duration = metadata.get("duration")
+    duration = max(
+        0.1,
+        float(probed or manifest_duration or config.max_cut_seconds),
+    )
+    width = int(metadata.get("width") or 0)
+    height = int(metadata.get("height") or 0)
+    try:
+        scenes = scene_detector.detect(
+            path,
+            duration,
+            config.scene_threshold,
+            config.scene_min_seconds,
+        )
+    except (OSError, ValueError, VisualAnalysisError):
+        scenes = (SceneRange(0, 0.0, duration),)
+    return _Source(
+        path,
+        duration,
+        probed is not None,
+        width,
+        height,
+        _technical_score(probed is not None, width, height, config),
+        scenes,
+    )
 
 
 def _load_beat_semantics(path: Path) -> dict[str, dict[str, str]]:

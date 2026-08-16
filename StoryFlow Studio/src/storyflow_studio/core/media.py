@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .process import WINDOWS_NO_WINDOW
+
 
 def probe_audio_duration(path: Path, timeout_seconds: int = 10) -> float | None:
     """Return audio duration through ffprobe when it is available."""
@@ -29,6 +31,7 @@ def probe_audio_duration(path: Path, timeout_seconds: int = 10) -> float | None:
             capture_output=True,
             text=True,
             timeout=max(1, timeout_seconds),
+            creationflags=WINDOWS_NO_WINDOW,
         )
         duration = float(result.stdout.strip())
         return duration if duration > 0 else None

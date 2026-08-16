@@ -14,8 +14,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Protocol
 
+from ...core.process import WINDOWS_NO_WINDOW
 from ...core.settings import AppSettings
 from ..workspace import Project
+from .capcut_draft import create_capcut_draft
 
 
 class CapCutExportError(RuntimeError):
@@ -40,6 +42,7 @@ class CapCutExportResult:
     manifest_file: Path
     scene_count: int
     duration_seconds: float
+    draft_dir: Path | None = None
 
 
 class CapCutPackageExporter:
@@ -56,6 +59,7 @@ class CapCutPackageExporter:
         cancellation: Cancellation,
         *,
         replace_existing: bool = False,
+        draft_name: str | None = None,
     ) -> CapCutExportResult:
         if not self.ffmpeg:
             raise CapCutExportError("CapCut Export cần cài ffmpeg.")
@@ -67,6 +71,9 @@ class CapCutPackageExporter:
                 "CapCut Package đã tồn tại. Hãy dùng Export Again để thay thế."
             )
         config = settings.normalized().video_builder
+        capcut_project_name = str(draft_name or project.manifest.name).strip()
+        if not capcut_project_name:
+            raise CapCutExportError("Tên dự án CapCut không được để trống.")
         width, height = (1280, 720) if config.resolution == "720p" else (1920, 1080)
         package_dir.parent.mkdir(parents=True, exist_ok=True)
         temporary = Path(
@@ -103,6 +110,7 @@ class CapCutPackageExporter:
                         "schema_version": 1,
                         "created_utc": datetime.now(UTC).isoformat(),
                         "project": project.manifest.name,
+                        "capcut_project_name": capcut_project_name,
                         "canvas": {
                             "width": width,
                             "height": height,
@@ -113,6 +121,7 @@ class CapCutPackageExporter:
                             "video": manifest_rows,
                             "narration": media["narration"],
                             "captions": media["captions"],
+                            "narration_timing": media["narration_timing"],
                             "background_music": media["background_music"],
                             "reference_video": media["reference_video"],
                         },
@@ -126,12 +135,34 @@ class CapCutPackageExporter:
                 "STORYFLOW CAPCUT PACKAGE\n\n"
                 "1. Import all MP4 files in scenes/ in filename order.\n"
                 "2. Place narration audio at 00:00:00; do not trim it.\n"
-                "3. Import captions.srt through CapCut Captions.\n"
+                "3. screen.srt is the complete viewer-facing subtitle track; narration.srt is the spoken timing source.\n"
                 "4. Add background_music.mp3 when present.\n"
                 "5. Use reference.mp4 to compare the finished timeline when present.\n"
                 "6. capcut_manifest.json contains exact editable timing.\n",
                 encoding="utf-8",
             )
+            draft_dir = None
+            if config.capcut_template_dir:
+                cancellation.raise_if_cancelled()
+                progress(
+                    CapCutExportProgress(
+                        "video_plan", "running", 86, "Creating editable CapCut Draft…"
+                    )
+                )
+                template = Path(config.capcut_template_dir).expanduser()
+                drafts_root = (
+                    Path(config.capcut_drafts_root).expanduser()
+                    if config.capcut_drafts_root
+                    else None
+                )
+                draft_dir = create_capcut_draft(
+                    temporary,
+                    template,
+                    capcut_project_name,
+                    drafts_root=drafts_root,
+                    register=config.capcut_register_draft,
+                    replace_existing=replace_existing,
+                )
             progress(CapCutExportProgress("video_plan", "running", 90, "Publishing CapCut Package…"))
             if backup.exists():
                 shutil.rmtree(backup)
@@ -151,8 +182,16 @@ class CapCutPackageExporter:
                 package_dir / manifest_file.name,
                 len(manifest_rows),
                 duration,
+                draft_dir,
             )
-        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            StopIteration,
+            RuntimeError,
+            subprocess.SubprocessError,
+        ) as exc:
             raise CapCutExportError(str(exc)) from exc
         finally:
             if temporary.exists():
@@ -197,6 +236,7 @@ class CapCutPackageExporter:
             ],
             capture_output=True,
             text=True,
+            creationflags=WINDOWS_NO_WINDOW,
         )
         if completed.returncode != 0:
             raise CapCutExportError(
@@ -214,15 +254,47 @@ class CapCutPackageExporter:
             "source_end": round(source_start + scene_duration, 6),
         }
 
-    @staticmethod
-    def _copy_project_media(project: Project, settings: AppSettings, target: Path) -> dict:
+    def _copy_project_media(
+        self, project: Project, settings: AppSettings, target: Path
+    ) -> dict:
         narration = project.path_for("audio_file")
         captions = project.path_for("subtitle_file")
+        screen_captions = project.path_for("screen_subtitle_file")
         if not narration.is_file() or not captions.is_file():
             raise CapCutExportError("CapCut Export cần narration MP3 và SRT.")
-        narration_name = f"narration{narration.suffix.lower() or '.mp3'}"
-        shutil.copy2(narration, target / narration_name)
-        shutil.copy2(captions, target / "captions.srt")
+        narration_name = "narration.wav"
+        completed = subprocess.run(
+            [
+                self.ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(narration),
+                "-vn",
+                "-c:a",
+                "pcm_s16le",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                str(target / narration_name),
+            ],
+            capture_output=True,
+            text=True,
+            creationflags=WINDOWS_NO_WINDOW,
+        )
+        if completed.returncode != 0:
+            raise CapCutExportError(
+                "Không chuyển được narration sang WAV cho CapCut: "
+                + completed.stderr[-1500:].strip()
+            )
+        shutil.copy2(captions, target / "narration.srt")
+        screen_name = None
+        if screen_captions.is_file():
+            screen_name = "screen.srt"
+            shutil.copy2(screen_captions, target / screen_name)
         music_name = None
         music = project.path_for("background_music_file")
         if settings.normalized().music.enabled and music.is_file():
@@ -235,7 +307,8 @@ class CapCutPackageExporter:
             shutil.copy2(reference, target / reference_name)
         return {
             "narration": narration_name,
-            "captions": "captions.srt",
+            "captions": screen_name,
+            "narration_timing": "narration.srt",
             "background_music": music_name,
             "reference_video": reference_name,
         }

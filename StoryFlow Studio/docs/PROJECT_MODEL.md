@@ -56,6 +56,8 @@ Launch StoryFlow Studio
 Dialog `New Project` gồm:
 
 - `Project Name`: tên hiển thị.
+- `Description`: mô tả nội dung, đối tượng, tone hoặc mục tiêu sản xuất; tối đa
+  2.000 ký tự.
 - `Folder Name`: slug được sinh tự động nhưng có thể sửa.
 - `Workspace Root`: lấy mặc định từ Settings và có thể đổi trước khi tạo.
 - Preview đường dẫn project đầy đủ.
@@ -78,6 +80,7 @@ Quy tắc tạo project:
   "schema_version": 1,
   "project_id": "uuid",
   "name": "Morning Prayer 001",
+  "description": "A calm morning prayer for people beginning a hard day.",
   "created_at": "ISO-8601",
   "updated_at": "ISO-8601",
   "paths": {
@@ -86,6 +89,7 @@ Quy tắc tạo project:
     "audio_dir": "audio",
     "audio_file": "narration.mp3",
     "subtitle_file": "narration.srt",
+    "screen_subtitle_file": "screen.srt",
     "beat_file": "footage.csv",
     "beat_timing_file": ".storyflow/beat_timing.json",
     "footage_dir": "video",

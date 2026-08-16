@@ -9,11 +9,18 @@ from typing import Any, Callable, Protocol
 
 try:
     from openai_codex import Codex, Sandbox
+    import openai_codex.client as _codex_client_module
 except ImportError:  # Show a useful UI error before dependencies are installed.
     Codex = None  # type: ignore[assignment]
     Sandbox = None  # type: ignore[assignment]
+    _codex_client_module = None
 
+from ...core.process import hide_console_for_subprocess_owner
 from ...core.settings import AISettings
+
+
+if _codex_client_module is not None:
+    hide_console_for_subprocess_owner(_codex_client_module)
 
 
 @dataclass(frozen=True, slots=True)

@@ -79,8 +79,14 @@ Footage manifest cho đúng các source thực sự xuất hiện trên timeline
 
 Phase 7B4 dùng `CapCutPackageExporter` để chuyển saved timeline thành package
 portable gồm các editable scene MP4, narration, captions, optional music và
-timing manifest. Export độc lập với Final Render và không ghi vào dữ liệu nội
-bộ của CapCut.
+timing manifest. Export độc lập với Final Render; portable package không phụ
+thuộc dữ liệu nội bộ của CapCut.
+
+Khi người dùng cấu hình một CapCut Template Draft, exporter tiếp tục gọi adapter
+`capcut_draft.py`: sao chép template, nhúng portable media, thay các video/audio/
+caption track, cập nhật `draft_content.json` và `draft_meta_info.json`. Việc cập
+nhật `root_meta_info.json` là tùy chọn và chỉ thực hiện sau khi kiểm tra CapCut đã
+đóng. Adapter chỉ Replace Draft có marker `Resources/StoryFlowStudio`.
 
 ## Dependency direction
 

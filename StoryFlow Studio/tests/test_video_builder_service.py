@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -266,6 +267,41 @@ class VideoBuilderServiceTests(unittest.TestCase):
                 if row["beat"] == "H01"
             }
             self.assertGreater(len(h01_windows), 1)
+
+    def test_analysis_workers_scan_footage_concurrently(self) -> None:
+        class ConcurrentScenes:
+            def __init__(self) -> None:
+                self.barrier = threading.Barrier(2, timeout=2)
+                self.thread_ids: set[int] = set()
+                self.lock = threading.Lock()
+
+            def detect(self, path, duration, threshold, minimum):
+                with self.lock:
+                    self.thread_ids.add(threading.get_ident())
+                self.barrier.wait()
+                return (SceneRange(0, 0.0, duration),)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            scenes = ConcurrentScenes()
+            updates = []
+            result = VideoBuilderService(
+                duration_probe=lambda _path: 12.0,
+                scene_detector=scenes,
+            ).analyze(
+                project,
+                AppSettings(
+                    video_builder=VideoBuilderSettings(analysis_workers=2)
+                ),
+                updates.append,
+                CancellationToken(),
+            )
+
+            self.assertEqual(result.cut_count, 2)
+            self.assertEqual(len(scenes.thread_ids), 2)
+            self.assertTrue(
+                any("Analyzed footage 2/2" in update.message for update in updates)
+            )
 
     def test_replace_clip_updates_json_and_csv_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

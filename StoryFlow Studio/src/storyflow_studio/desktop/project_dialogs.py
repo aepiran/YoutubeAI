@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -41,6 +42,11 @@ class NewProjectDialog(QDialog):
         form = QFormLayout()
         self.project_name = QLineEdit()
         self.project_name.setPlaceholderText("Morning Prayer 001")
+        self.project_description = QPlainTextEdit()
+        self.project_description.setPlaceholderText(
+            "Describe the story, audience, tone, or production goal…"
+        )
+        self.project_description.setMaximumHeight(96)
         self.folder_name = QLineEdit()
         self.folder_name.setPlaceholderText("morning-prayer-001")
         self.workspace_root = QLineEdit(workspace_root)
@@ -52,6 +58,7 @@ class NewProjectDialog(QDialog):
         root_layout.addWidget(self.workspace_root, 1)
         root_layout.addWidget(browse)
         form.addRow("Project Name", self.project_name)
+        form.addRow("Description", self.project_description)
         form.addRow("Folder Name", self.folder_name)
         form.addRow("Workspace Root", root_row)
         layout.addLayout(form)
@@ -96,17 +103,25 @@ class NewProjectDialog(QDialog):
         folder = self.folder_name.text().strip() or "<project-folder>"
         self.preview.setText(f"Project Path  ·  {Path(root) / folder}")
 
-    def values(self) -> tuple[str, str, str]:
+    def values(self) -> tuple[str, str, str, str]:
         return (
             self.workspace_root.text().strip(),
             self.project_name.text().strip(),
             self.folder_name.text().strip(),
+            self.project_description.toPlainText().strip(),
         )
 
     def accept(self) -> None:
-        root, name, folder = self.values()
+        root, name, folder, description = self.values()
         if not root or not name:
             QMessageBox.warning(self, "Invalid Project", "Workspace Root và Project Name là bắt buộc.")
+            return
+        if len(description) > 2000:
+            QMessageBox.warning(
+                self,
+                "Invalid Project",
+                "Project Description không được dài quá 2.000 ký tự.",
+            )
             return
         try:
             WorkspaceService.validate_folder_name(folder)
@@ -119,7 +134,7 @@ class NewProjectDialog(QDialog):
 class ExportChoiceDialog(QDialog):
     """Choose one output workflow without crowding the Video Builder card."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, capcut_draft_name: str = "") -> None:
         super().__init__(parent)
         self.setWindowTitle("Export · StoryFlow Studio")
         self.setMinimumWidth(540)
@@ -139,7 +154,18 @@ class ExportChoiceDialog(QDialog):
         layout.addWidget(title)
         layout.addWidget(description)
 
-        self.render_button = QPushButton("Render Video")
+        capcut_name_label = QLabel("CapCut Project Name")
+        capcut_name_label.setObjectName("SectionTitle")
+        layout.addWidget(capcut_name_label)
+        self.capcut_name = QLineEdit(capcut_draft_name.strip())
+        self.capcut_name.setPlaceholderText("Enter the project name shown in CapCut")
+        self.capcut_name.setAccessibleName("CapCut Project Name")
+        self.capcut_name.setToolTip(
+            "Used for the CapCut Draft folder and the project name shown in CapCut"
+        )
+        layout.addWidget(self.capcut_name)
+
+        self.render_button = QPushButton("Final MP4")
         self.render_button.setObjectName("ExportChoiceButton")
         self.render_button.setAccessibleName("Render Final Video")
         self.render_button.setToolTip(
@@ -148,11 +174,11 @@ class ExportChoiceDialog(QDialog):
         self.render_button.clicked.connect(lambda: self._select("render"))
         layout.addWidget(self.render_button)
 
-        self.capcut_button = QPushButton("Export CapCut Draft")
+        self.capcut_button = QPushButton("CapCut Draft")
         self.capcut_button.setObjectName("ExportChoiceButton")
         self.capcut_button.setAccessibleName("Export CapCut Draft")
         self.capcut_button.setToolTip(
-            "Create an editable CapCut package with scenes, audio, captions and manifest"
+            "Create a portable package and, when configured, an editable CapCut Draft"
         )
         self.capcut_button.clicked.connect(lambda: self._select("capcut"))
         layout.addWidget(self.capcut_button)
@@ -162,8 +188,19 @@ class ExportChoiceDialog(QDialog):
         layout.addWidget(cancel)
 
     def _select(self, choice: str) -> None:
+        if choice == "capcut" and not self.capcut_name.text().strip():
+            QMessageBox.warning(
+                self,
+                "CapCut Project Name",
+                "Hãy nhập tên dự án CapCut trước khi Export.",
+            )
+            self.capcut_name.setFocus()
+            return
         self._choice = choice
         self.accept()
 
     def choice(self) -> str:
         return self._choice
+
+    def draft_name(self) -> str:
+        return self.capcut_name.text().strip()

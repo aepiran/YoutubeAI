@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
+from ...core.process import WINDOWS_NO_WINDOW
 from ...core.settings import AppSettings
 from ..workspace import Project
 
@@ -301,6 +302,7 @@ class FFmpegTimelineRenderer:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                creationflags=WINDOWS_NO_WINDOW,
             )
             payload = json.loads(result.stdout)
             streams = payload.get("streams", [])
@@ -351,6 +353,7 @@ def _run_cancellable(command: list[str], cancellation: Cancellation, label: str)
         text=True,
         encoding="utf-8",
         errors="replace",
+        creationflags=WINDOWS_NO_WINDOW,
     )
     try:
         while True:

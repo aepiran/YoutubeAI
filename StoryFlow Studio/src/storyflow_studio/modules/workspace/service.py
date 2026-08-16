@@ -32,6 +32,7 @@ class ProjectPaths:
     audio_dir: str = "audio"
     audio_file: str = "narration.mp3"
     subtitle_file: str = "narration.srt"
+    screen_subtitle_file: str = "screen.srt"
     beat_file: str = "footage.csv"
     music_cue_file: str = "cue_music.csv"
     background_music_file: str = "audio/background_music.mp3"
@@ -54,6 +55,7 @@ class ProjectManifest:
     created_at: str
     updated_at: str
     paths: ProjectPaths
+    description: str = ""
     stages: dict[str, str] = field(
         default_factory=lambda: {
             "tts_script": "pending",
@@ -92,6 +94,8 @@ class Project:
             relative = Path(paths.audio_dir) / paths.audio_file
         elif name == "subtitle_file":
             relative = Path(paths.audio_dir) / paths.subtitle_file
+        elif name == "screen_subtitle_file":
+            relative = Path(paths.audio_dir) / paths.screen_subtitle_file
         elif name == "beat_file":
             relative = Path(paths.beat_file)
         elif name == "music_cue_file":
@@ -145,10 +149,15 @@ class WorkspaceService:
         name: str,
         folder_name: str,
         settings: AppSettings,
+        *,
+        description: str = "",
     ) -> Project:
         clean_name = name.strip()
+        clean_description = description.strip()
         if not clean_name:
             raise ProjectError("Project Name không được để trống.")
+        if len(clean_description) > 2000:
+            raise ProjectError("Project Description không được dài quá 2.000 ký tự.")
         clean_folder = self.validate_folder_name(folder_name)
         root = Path(workspace_root).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
@@ -171,6 +180,7 @@ class WorkspaceService:
             created_at=now,
             updated_at=now,
             paths=paths,
+            description=clean_description,
         )
         temporary = Path(
             tempfile.mkdtemp(prefix=f".storyflow-new-{clean_folder}-", dir=root)
@@ -246,6 +256,10 @@ class WorkspaceService:
             ("beat_file", paths.beat_file),
             ("audio_file", str(Path(paths.audio_dir) / paths.audio_file)),
             ("subtitle_file", str(Path(paths.audio_dir) / paths.subtitle_file)),
+            (
+                "screen_subtitle_file",
+                str(Path(paths.audio_dir) / paths.screen_subtitle_file),
+            ),
             ("music_cue_file", str(Path("audio") / paths.music_cue_file)),
             ("background_music_file", paths.background_music_file),
             ("footage_dir", paths.footage_dir),
@@ -267,6 +281,7 @@ class WorkspaceService:
         self._validate_filename(paths.tts_script, "tts_script")
         self._validate_filename(paths.audio_file, "audio_file")
         self._validate_filename(paths.subtitle_file, "subtitle_file")
+        self._validate_filename(paths.screen_subtitle_file, "screen_subtitle_file")
         self._validate_filename(paths.beat_file, "beat_file")
         self._validate_filename(paths.music_cue_file, "music_cue_file")
         self._validate_filename(paths.footage_dir, "footage_dir")
@@ -293,6 +308,9 @@ class WorkspaceService:
                 audio_dir=str(paths_raw["audio_dir"]),
                 audio_file=str(paths_raw["audio_file"]),
                 subtitle_file=str(paths_raw["subtitle_file"]),
+                screen_subtitle_file=str(
+                    paths_raw.get("screen_subtitle_file", "screen.srt")
+                ),
                 beat_file=str(paths_raw["beat_file"]),
                 music_cue_file=str(paths_raw.get("music_cue_file", "cue_music.csv")),
                 background_music_file=str(
@@ -350,13 +368,14 @@ class WorkspaceService:
             )
         } if isinstance(stages_raw, dict) else {}
         return ProjectManifest(
-            PROJECT_SCHEMA_VERSION,
-            project_id,
-            name,
-            str(raw.get("created_at", "")),
-            str(raw.get("updated_at", "")),
-            paths,
-            stages,
+            schema_version=PROJECT_SCHEMA_VERSION,
+            project_id=project_id,
+            name=name,
+            created_at=str(raw.get("created_at", "")),
+            updated_at=str(raw.get("updated_at", "")),
+            paths=paths,
+            description=str(raw.get("description", "")).strip(),
+            stages=stages,
         )
 
     @staticmethod
@@ -366,6 +385,7 @@ class WorkspaceService:
             "voice": "completed"
             if project.path_for("audio_file").is_file()
             and project.path_for("subtitle_file").is_file()
+            and project.path_for("screen_subtitle_file").is_file()
             else "pending",
             "beat": "completed" if project.path_for("beat_file").is_file() else "pending",
             "music": "completed"

@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from ...core.process import WINDOWS_NO_WINDOW
+
 
 class VisualAnalysisError(RuntimeError):
     pass
@@ -65,6 +67,7 @@ class FFmpegSceneDetector:
                 capture_output=True,
                 text=True,
                 timeout=max(20, min(300, int(math.ceil(duration * 2.0)))),
+                creationflags=WINDOWS_NO_WINDOW,
             )
         except (OSError, subprocess.SubprocessError):
             return fallback
@@ -187,6 +190,7 @@ class HuggingFaceSemanticScorer:
                     check=True,
                     capture_output=True,
                     timeout=30,
+                    creationflags=WINDOWS_NO_WINDOW,
                 )
                 with Image.open(frame) as image:
                     inputs = self._prepare_inputs(text, image.convert("RGB"))

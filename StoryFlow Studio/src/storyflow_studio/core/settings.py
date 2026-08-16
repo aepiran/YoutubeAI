@@ -13,7 +13,7 @@ from typing import Any
 from .secrets import KeyringSecretStore, SecretStore
 
 
-SETTINGS_SCHEMA_VERSION = 7
+SETTINGS_SCHEMA_VERSION = 10
 REASONING_EFFORTS = ("default", "low", "medium", "high", "xhigh")
 
 
@@ -36,6 +36,7 @@ class WorkspaceSettings:
     role_instructions: str = ""
     recent_projects: list[str] = field(default_factory=list)
     last_project: str = ""
+    workflow_mode: str = "manual"
 
     def normalized(self) -> "WorkspaceSettings":
         recent = []
@@ -49,12 +50,18 @@ class WorkspaceSettings:
             role_instructions=self.role_instructions.strip(),
             recent_projects=recent[:12],
             last_project=self.last_project.strip(),
+            workflow_mode=(
+                self.workflow_mode.strip().lower()
+                if self.workflow_mode.strip().lower() in {"manual", "auto"}
+                else "manual"
+            ),
         )
 
 
 @dataclass(slots=True)
 class TTSSettings:
     dna_path: str = ""
+    screen_dna_path: str = ""
     api_base_url: str = ""
     api_key: str = field(default="", repr=False, compare=False)
     provider: str = "minimax"
@@ -77,6 +84,7 @@ class TTSSettings:
     def normalized(self) -> "TTSSettings":
         return TTSSettings(
             dna_path=self.dna_path.strip(),
+            screen_dna_path=self.screen_dna_path.strip(),
             api_base_url=self.api_base_url.strip().rstrip("/"),
             api_key=self.api_key.strip(),
             provider=self.provider.strip() or "minimax",
@@ -175,6 +183,9 @@ class VideoBuilderSettings:
     local_models_only: bool = False
     scene_threshold: float = 0.32
     scene_min_seconds: float = 1.0
+    capcut_template_dir: str = ""
+    capcut_drafts_root: str = ""
+    capcut_register_draft: bool = False
 
     def normalized(self) -> "VideoBuilderSettings":
         resolution = self.resolution.strip().lower()
@@ -211,6 +222,9 @@ class VideoBuilderSettings:
             local_models_only=bool(self.local_models_only),
             scene_threshold=max(0.05, min(0.95, float(self.scene_threshold))),
             scene_min_seconds=max(0.5, min(10.0, float(self.scene_min_seconds))),
+            capcut_template_dir=self.capcut_template_dir.strip(),
+            capcut_drafts_root=self.capcut_drafts_root.strip(),
+            capcut_register_draft=bool(self.capcut_register_draft),
         )
 
 
@@ -291,9 +305,11 @@ class SettingsStore:
                 role_instructions=str(workspace_raw.get("role_instructions", "")),
                 recent_projects=recent,
                 last_project=str(workspace_raw.get("last_project", "")),
+                workflow_mode=str(workspace_raw.get("workflow_mode", "manual")),
             ),
             tts=TTSSettings(
                 dna_path=str(tts_raw.get("dna_path", "")),
+                screen_dna_path=str(tts_raw.get("screen_dna_path", "")),
                 api_base_url=str(tts_raw.get("api_base_url", "")),
                 api_key=self.secret_store.get("tts_api_key"),
                 provider=str(tts_raw.get("provider", defaults.provider)),
@@ -379,6 +395,15 @@ class SettingsStore:
                 ),
                 scene_min_seconds=_float(
                     video_builder_raw.get("scene_min_seconds"), 1.0
+                ),
+                capcut_template_dir=str(
+                    video_builder_raw.get("capcut_template_dir", "")
+                ),
+                capcut_drafts_root=str(
+                    video_builder_raw.get("capcut_drafts_root", "")
+                ),
+                capcut_register_draft=_bool(
+                    video_builder_raw.get("capcut_register_draft"), False
                 ),
             ),
         )

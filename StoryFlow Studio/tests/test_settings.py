@@ -69,9 +69,11 @@ class SettingsStoreTests(unittest.TestCase):
                     role_instructions="Write with a calm voice.",
                     recent_projects=["/projects/one"],
                     last_project="/projects/one",
+                    workflow_mode="auto",
                 ),
                 tts=TTSSettings(
                     dna_path="/dna/voice.md",
+                    screen_dna_path="/dna/screen.md",
                     api_base_url="https://voice.example.test/",
                     api_key="top-secret-value",
                     voice_id="voice-01",
@@ -102,6 +104,9 @@ class SettingsStoreTests(unittest.TestCase):
                     local_models_only=False,
                     scene_threshold=0.4,
                     scene_min_seconds=1.5,
+                    capcut_template_dir="/capcut/template",
+                    capcut_drafts_root="/capcut/drafts",
+                    capcut_register_draft=True,
                 ),
             )
 
@@ -116,7 +121,9 @@ class SettingsStoreTests(unittest.TestCase):
             self.assertEqual(secrets.values["tts_api_key"], "top-secret-value")
             self.assertEqual(loaded.tts.api_key, "top-secret-value")
             self.assertEqual(loaded.tts.api_base_url, "https://voice.example.test")
+            self.assertEqual(loaded.tts.screen_dna_path, "/dna/screen.md")
             self.assertEqual(loaded.workspace.last_project, "/projects/one")
+            self.assertEqual(loaded.workspace.workflow_mode, "auto")
             self.assertEqual(loaded.beat.output_filename, "beats.csv")
             self.assertEqual(loaded.music.dna_path, "/dna/music.md")
             self.assertEqual(loaded.music.library_folder, "/music/library")
@@ -143,6 +150,13 @@ class SettingsStoreTests(unittest.TestCase):
             )
             self.assertFalse(loaded.video_builder.local_models_only)
             self.assertEqual(loaded.video_builder.scene_threshold, 0.4)
+            self.assertEqual(
+                loaded.video_builder.capcut_template_dir, "/capcut/template"
+            )
+            self.assertEqual(
+                loaded.video_builder.capcut_drafts_root, "/capcut/drafts"
+            )
+            self.assertTrue(loaded.video_builder.capcut_register_draft)
 
 
 if __name__ == "__main__":

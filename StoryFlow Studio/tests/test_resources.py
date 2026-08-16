@@ -2,10 +2,21 @@ from __future__ import annotations
 
 import unittest
 
-from storyflow_studio.core.resources import builtin_background_music_dna
+from storyflow_studio.core.resources import (
+    builtin_background_music_dna,
+    builtin_screen_subtitle_dna,
+)
 
 
 class ResourceTests(unittest.TestCase):
+    def test_build_contains_default_screen_subtitle_dna(self) -> None:
+        dna = builtin_screen_subtitle_dna()
+        self.assertIn("# StoryFlow Display SRT DNA", dna)
+        self.assertIn("Psalm 23:4", dna)
+        self.assertIn("Preserve 100% of the narration content", dna)
+        self.assertIn("$100.50", dna)
+        self.assertIn("in the year 2025", dna)
+
     def test_build_contains_default_background_music_dna(self) -> None:
         dna = builtin_background_music_dna()
         self.assertIn("# StoryFlow Background Music DNA", dna)

@@ -7,11 +7,13 @@ Use the complete TTS script for semantic and emotional context, and use SRT
 cues as the authoritative timeline. Select music only from the supplied Music
 Library catalog.
 
-StoryFlow publishes these two project artifacts:
+StoryFlow publishes these project artifacts:
 
 ```text
 audio/cue_music.csv
 audio/background_music.mp3
+audio/music_recommendations.json
+.storyflow/music_analysis.json
 ```
 
 `audio/cue_music.csv` is the validated, editable music timeline used by the renderer.
@@ -74,6 +76,13 @@ For every semantic section:
 - Use a restrained opening and reserve the strongest safe lift for the main
   declaration, breakthrough or emotional resolution.
 - Return to a calm, resolved texture for the closing section.
+- Give the selected local track a confidence score from `0.0` to `1.0`.
+- List suitable alternatives using only exact filenames from the supplied library.
+- Set `needs_more_music` when no local track is a strong semantic fit or when
+  confidence is below `0.65`.
+- For every section needing more music, describe the desired mood, energy,
+  tempo, instruments to prefer or avoid, minimum useful duration, and practical
+  English search queries for Mixkit or CapCut.
 
 Do not infer that a track is suitable solely because its filename contains one
 matching word. Consider the full section, neighboring cues and overall arc.
@@ -103,6 +112,25 @@ Required schema:
 
 ```json
 {
+  "sections": [
+    {
+      "section_id": "S01",
+      "cue_start": 1,
+      "cue_end": 12,
+      "purpose": "Opening reflection",
+      "mood": ["peaceful", "reflective"],
+      "energy": "low",
+      "tempo": "slow",
+      "instruments": ["soft piano", "ambient strings"],
+      "avoid": ["vocals", "heavy percussion"],
+      "selected_track": "exact-library-filename.mp3",
+      "confidence": 0.82,
+      "alternatives": ["another-exact-library-filename.mp3"],
+      "rationale": "Why this track supports the spoken meaning",
+      "needs_more_music": false,
+      "search_queries": []
+    }
+  ],
   "cues": [
     {
       "cue": "C01",
@@ -116,9 +144,32 @@ Required schema:
       "target_music_lufs": -35.0,
       "notes": "Gentle fade in under the opening voice"
     }
+  ],
+  "recommendations": [
+    {
+      "section_id": "S02",
+      "cue_start": 13,
+      "cue_end": 30,
+      "reason": "The library lacks a restrained hopeful lift",
+      "desired_mood": ["hopeful", "warm"],
+      "energy": "medium-low",
+      "tempo": "slow",
+      "instruments": ["piano", "warm strings"],
+      "avoid": ["vocals", "trailer impacts"],
+      "minimum_duration_seconds": 150,
+      "search_queries": [
+        "cinematic hopeful piano ambient instrumental",
+        "gentle prayer warm strings no vocals"
+      ]
+    }
   ]
 }
 ```
+
+`sections` must cover every SRT cue exactly once, in order, without gaps or
+overlap. Use an empty `recommendations` array only when every section already
+has a strong local match. Recommendations describe tracks to find and import;
+they must never invent a filename for the rendered `cues`.
 
 After validation, StoryFlow converts every object in `cues` into one row of
 `audio/cue_music.csv` using this exact column order:
@@ -133,6 +184,7 @@ quoting. Cue rows must remain in timeline order.
 ## Required validation before acceptance
 
 - Cue codes are continuous: `C01`, `C02`, `C03`...
+- Section codes are continuous: `S01`, `S02`, `S03`... and cover all SRT cues.
 - Every referenced track exactly matches an allowed library filename.
 - Timestamps use `MM:SS.mmm`; the timeline begins at `00:00.000`, has no gap,
   uses only intentional crossfade overlaps and ends at the narration duration.
@@ -142,6 +194,8 @@ quoting. Cue rows must remain in timeline order.
 - `audio/cue_music.csv` contains exactly one header and one row per validated cue.
 - The renderer publishes `audio/cue_music.csv` and one final user-facing MP3 only.
 
-If the supplied library cannot safely cover the full narration, return a JSON
-object with an `error` field explaining which duration or mood cannot be
-covered. Never invent a track, silently leave a gap or return a partial plan.
+If the library can render the full timeline but is not an ideal semantic fit,
+use the safest available local track and return recommendations for improving
+those sections. Return an `error` only when the existing library cannot safely
+render continuous audio at all. Never invent a track, silently leave a gap or
+return a partial plan.

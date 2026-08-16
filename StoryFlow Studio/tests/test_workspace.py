@@ -28,7 +28,11 @@ class WorkspaceServiceTests(unittest.TestCase):
             )
 
             project = self.service.create_project(
-                workspace, "My First Story", "my-first-story", settings
+                workspace,
+                "My First Story",
+                "my-first-story",
+                settings,
+                description="A calm morning prayer for people beginning a hard day.",
             )
 
             self.assertEqual(project.root.parent, workspace.resolve())
@@ -53,6 +57,27 @@ class WorkspaceServiceTests(unittest.TestCase):
             manifest_text = project.manifest_path.read_text(encoding="utf-8")
             self.assertNotIn("must-not-enter-project", manifest_text)
             self.assertNotIn("api_key", manifest_text.lower())
+            self.assertEqual(
+                project.manifest.description,
+                "A calm morning prayer for people beginning a hard day.",
+            )
+            self.assertEqual(
+                json.loads(manifest_text)["description"],
+                project.manifest.description,
+            )
+
+    def test_open_legacy_project_without_description(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.service.create_project(
+                directory, "Legacy", "legacy", AppSettings()
+            )
+            raw = json.loads(project.manifest_path.read_text(encoding="utf-8"))
+            raw.pop("description")
+            project.manifest_path.write_text(json.dumps(raw), encoding="utf-8")
+
+            reopened = self.service.open_project(project.root)
+
+            self.assertEqual(reopened.manifest.description, "")
 
     def test_create_rejects_existing_project_and_unsafe_folder(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -84,6 +109,9 @@ class WorkspaceServiceTests(unittest.TestCase):
             project.path_for("tts_script").write_text("script", encoding="utf-8")
             project.path_for("audio_file").write_bytes(b"mp3")
             project.path_for("subtitle_file").write_text("srt", encoding="utf-8")
+            project.path_for("screen_subtitle_file").write_text(
+                "screen", encoding="utf-8"
+            )
             project.path_for("beat_file").write_text("beat", encoding="utf-8")
 
             reopened = self.service.open_project(project.root)

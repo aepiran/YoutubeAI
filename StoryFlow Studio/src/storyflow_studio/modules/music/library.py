@@ -39,6 +39,19 @@ class MusicTrackRecord:
     license: str
     license_url: str
     imported_at: str
+    artist: str = ""
+    attribution: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MusicImportMetadata:
+    source: str
+    source_url: str
+    license: str
+    license_url: str
+    title: str = ""
+    artist: str = ""
+    attribution: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +72,8 @@ class MusicLibraryService:
         self,
         sources: Iterable[str | Path],
         library_folder: str | Path,
+        *,
+        metadata: MusicImportMetadata | None = None,
     ) -> ImportResult:
         library = Path(library_folder).expanduser().resolve()
         if not str(library_folder).strip():
@@ -98,18 +113,29 @@ class MusicLibraryService:
             destination = self._destination(library, source.name, digest)
             if destination.resolve() != source:
                 _atomic_copy(source, destination)
-            record = MusicTrackRecord(
-                track_id=digest[:16],
-                filename=destination.name,
-                title=_title_from_filename(destination.stem),
-                sha256=digest,
-                size_bytes=destination.stat().st_size,
-                duration_seconds=round(duration, 3),
+            import_metadata = metadata or MusicImportMetadata(
                 source="Mixkit",
                 source_url=MIXKIT_CATALOG_URL,
                 license=MIXKIT_LICENSE_NAME,
                 license_url=MIXKIT_LICENSE_URL,
+            )
+            record = MusicTrackRecord(
+                track_id=digest[:16],
+                filename=destination.name,
+                title=(
+                    import_metadata.title.strip()
+                    or _title_from_filename(destination.stem)
+                ),
+                sha256=digest,
+                size_bytes=destination.stat().st_size,
+                duration_seconds=round(duration, 3),
+                source=import_metadata.source,
+                source_url=import_metadata.source_url,
+                license=import_metadata.license,
+                license_url=import_metadata.license_url,
                 imported_at=datetime.now(UTC).isoformat(),
+                artist=import_metadata.artist,
+                attribution=import_metadata.attribution,
             )
             records.append(asdict(record))
             known_hashes.add(digest)

@@ -67,6 +67,29 @@ class FootageWorkflowServiceTests(unittest.TestCase):
             ["morning window", "golden sunrise"],
         )
 
+    def test_writes_supplement_file_with_only_missing_beats(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = WorkspaceService().create_project(
+                root / "workspace", "Finder", "finder", AppSettings()
+            )
+            project.path_for("beat_file").write_text(
+                "ma_beat,y_chinh,tu_khoa,hinh_can_tim,tranh\n"
+                "H01,Peace,morning window,Peaceful window,text overlay\n"
+                "H02,Hope,golden sunrise,Golden sunrise,night\n",
+                encoding="utf-8",
+            )
+
+            output = FootageWorkflowService.write_supplement_request(
+                project, ("H02",)
+            )
+
+            with output.open(encoding="utf-8-sig") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(output.name, "footage_supplement.csv")
+            self.assertEqual([row["ma_beat"] for row in rows], ["H02"])
+            self.assertEqual(rows[0]["tu_khoa"], "golden sunrise")
+
     def test_search_downloads_into_project_and_writes_attribution_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
