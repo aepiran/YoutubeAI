@@ -10,6 +10,7 @@ from pathlib import Path
 from storyflow_studio.core.settings import AppSettings, VideoBuilderSettings
 from storyflow_studio.modules.tts import CancellationToken
 from storyflow_studio.modules.video_builder import CapCutPackageExporter
+from storyflow_studio.modules.video_builder.capcut_draft import create_capcut_draft
 from storyflow_studio.modules.workspace import WorkspaceService
 
 
@@ -200,6 +201,129 @@ class CapCutExportTests(unittest.TestCase):
                 manifest["capcut_project_name"], "Beautiful Morning Prayer"
             )
             self.assertEqual(manifest["capcut_draft"]["path"], result.draft_dir.as_posix())
+
+
+class CapCutDraftAdapterTests(unittest.TestCase):
+    def test_template_owned_resources_are_replaced_when_creating_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = root / "package"
+            (package / "scenes").mkdir(parents=True)
+            (package / "scenes" / "scene_001.mp4").write_bytes(b"new scene")
+            (package / "narration.wav").write_bytes(b"narration")
+            (package / "capcut_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "project": "Morning Prayer",
+                        "canvas": {
+                            "width": 1280,
+                            "height": 720,
+                            "fps": 30.0,
+                            "duration_seconds": 1.0,
+                        },
+                        "tracks": {
+                            "video": [
+                                {
+                                    "file": "scenes/scene_001.mp4",
+                                    "duration": 1.0,
+                                    "timeline_start": 0.0,
+                                }
+                            ],
+                            "narration": "narration.wav",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            template = root / "template"
+            stale_scene_dir = template / "Resources" / "StoryFlowStudio" / "scenes"
+            stale_scene_dir.mkdir(parents=True)
+            (stale_scene_dir / "stale.mp4").write_bytes(b"stale")
+            (template / "draft_content.json").write_text(
+                json.dumps(
+                    {
+                        "version": 360000,
+                        "name": "Template",
+                        "duration": 1_000_000,
+                        "fps": 30.0,
+                        "path": str(template),
+                        "canvas_config": {"width": 1280, "height": 720},
+                        "materials": {
+                            "videos": [
+                                {
+                                    "id": "VIDEO",
+                                    "path": "old.mp4",
+                                    "duration": 1_000_000,
+                                }
+                            ],
+                            "audios": [
+                                {
+                                    "id": "AUDIO",
+                                    "path": "old.wav",
+                                    "duration": 1_000_000,
+                                }
+                            ],
+                            "texts": [],
+                        },
+                        "tracks": [
+                            {
+                                "id": "VT",
+                                "type": "video",
+                                "segments": [
+                                    {
+                                        "id": "VS",
+                                        "material_id": "VIDEO",
+                                        "source_timerange": {
+                                            "start": 0,
+                                            "duration": 1_000_000,
+                                        },
+                                        "target_timerange": {
+                                            "start": 0,
+                                            "duration": 1_000_000,
+                                        },
+                                        "extra_material_refs": [],
+                                    }
+                                ],
+                            },
+                            {
+                                "id": "AT",
+                                "type": "audio",
+                                "segments": [
+                                    {
+                                        "id": "AS",
+                                        "material_id": "AUDIO",
+                                        "source_timerange": {
+                                            "start": 0,
+                                            "duration": 1_000_000,
+                                        },
+                                        "target_timerange": {
+                                            "start": 0,
+                                            "duration": 1_000_000,
+                                        },
+                                        "extra_material_refs": [],
+                                    }
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (template / "draft_meta_info.json").write_text(
+                json.dumps({"draft_id": "TEMPLATE", "draft_name": "Template"}),
+                encoding="utf-8",
+            )
+
+            draft = create_capcut_draft(
+                package,
+                template,
+                "Exported Draft",
+                drafts_root=root / "drafts",
+            )
+
+            scene_dir = draft / "Resources" / "StoryFlowStudio" / "scenes"
+            self.assertTrue((scene_dir / "scene_001.mp4").is_file())
+            self.assertFalse((scene_dir / "stale.mp4").exists())
 
 
 if __name__ == "__main__":

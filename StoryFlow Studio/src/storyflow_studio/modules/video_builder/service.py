@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import shutil
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -15,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Protocol
 
-from ...core.media import probe_audio_duration
+from ...core.media import MediaInfo, probe_audio_duration, probe_media_info
 from ...core.settings import AppSettings, VideoBuilderSettings
 from ..workspace import Project
 from .visual import (
@@ -35,6 +36,7 @@ from .capcut import (
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v"}
+SCENE_CACHE_SCHEMA_VERSION = 2
 TIMELINE_COLUMNS = (
     "cut",
     "beat",
@@ -102,6 +104,7 @@ class _Source:
     height: int = 0
     technical_score: float = 0.0
     scenes: tuple[SceneRange, ...] = ()
+    fingerprint: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +146,7 @@ class _Cut:
 
 
 DurationProbe = Callable[[Path], float | None]
+MediaProbe = Callable[[Path], MediaInfo | None]
 SemanticScorerFactory = Callable[[str, Path, bool], SemanticScorer | None]
 
 
@@ -152,12 +156,14 @@ class VideoBuilderService:
     def __init__(
         self,
         duration_probe: DurationProbe = probe_audio_duration,
+        media_probe: MediaProbe = probe_media_info,
         scene_detector: SceneDetector | None = None,
         semantic_scorer_factory: SemanticScorerFactory = build_semantic_scorer,
         renderer: FFmpegTimelineRenderer | None = None,
         capcut_exporter: CapCutPackageExporter | None = None,
     ) -> None:
         self.duration_probe = duration_probe
+        self.media_probe = media_probe
         self.scene_detector = scene_detector or FFmpegSceneDetector()
         self.semantic_scorer_factory = semantic_scorer_factory
         self.renderer = renderer or FFmpegTimelineRenderer()
@@ -205,6 +211,7 @@ class VideoBuilderService:
             project,
             beats,
             self.duration_probe,
+            self.media_probe,
             self.scene_detector,
             config,
             progress,
@@ -224,25 +231,56 @@ class VideoBuilderService:
         history: list[tuple[Path, float, float]] = []
         for position, beat in enumerate(beats, start=1):
             cancellation.raise_if_cancelled()
-            cuts.extend(
-                _plan_beat(
+            code = str(beat["code"]).upper()
+            sources = inventory.get(code, [])
+            beat_semantics = semantics.get(code, {})
+            cached_plan = _load_plan_cache(
+                project,
+                beat,
+                sources,
+                config,
+                beat_semantics,
+                semantic_scorer.model_name if semantic_scorer is not None else "",
+                history,
+                len(cuts),
+            )
+            if cached_plan is not None:
+                planned, cached_history = cached_plan
+                cuts.extend(planned)
+                history.extend(cached_history)
+                action = "Reused plan"
+            else:
+                history_start = len(history)
+                planned = _plan_beat(
                     project,
                     beat,
-                    inventory.get(str(beat["code"]).upper(), []),
+                    sources,
                     config,
                     len(cuts),
-                    semantics.get(str(beat["code"]).upper(), {}),
+                    beat_semantics,
                     semantic_scorer,
                     history,
                 )
-            )
+                cuts.extend(planned)
+                _write_plan_cache(
+                    project,
+                    beat,
+                    sources,
+                    config,
+                    beat_semantics,
+                    semantic_scorer.model_name if semantic_scorer is not None else "",
+                    history[:history_start],
+                    planned,
+                    history[history_start:],
+                )
+                action = "Planned"
             percent = 25 + int(55 * position / max(1, len(beats)))
             progress(
                 VideoBuilderProgress(
                     "video_plan",
                     "running",
                     percent,
-                    f"Planned {beat['code']} · {position}/{len(beats)} beats",
+                    f"{action} {beat['code']} · {position}/{len(beats)} beats",
                 )
             )
         if not cuts:
@@ -293,6 +331,10 @@ class VideoBuilderService:
         return TimelineAnalysisResult(
             timeline_file, timeline_csv, len(cuts), warning_count, duration
         )
+
+    def clear_analysis_cache(self, project: Project) -> int:
+        """Remove reusable Video Builder analysis caches for one project."""
+        return _clear_analysis_cache(project)
 
     def review(
         self, project: Project, settings: AppSettings
@@ -572,13 +614,15 @@ def _load_inventory(
     project: Project,
     beats: list[dict],
     duration_probe: DurationProbe,
+    media_probe: MediaProbe,
     scene_detector: SceneDetector,
     config: VideoBuilderSettings,
     progress: Callable[[VideoBuilderProgress], None],
     cancellation: Cancellation,
 ) -> dict[str, list[_Source]]:
     known = {str(beat["code"]).upper() for beat in beats}
-    metadata = _manifest_metadata(project.path_for("footage_manifest"))
+    manifest_metadata = _manifest_metadata(project.path_for("footage_manifest"))
+    inventory_cache = _load_inventory_cache(project)
     result = {code: [] for code in known}
     directory = project.path_for("footage_dir")
     if not directory.is_dir():
@@ -595,36 +639,120 @@ def _load_inventory(
         return result
 
     cancellation.raise_if_cancelled()
-    worker_count = min(config.analysis_workers, len(candidates))
     inspected: list[tuple[str, _Source] | None] = [None] * len(candidates)
-    with ThreadPoolExecutor(
-        max_workers=worker_count,
-        thread_name_prefix="storyflow-analysis",
-    ) as executor:
-        futures = {
-            executor.submit(
-                _inspect_inventory_source,
-                path,
-                metadata.get(path.name, {}),
-                duration_probe,
-                scene_detector,
-                config,
-            ): (index, code, path)
-            for index, (path, code) in enumerate(candidates)
-        }
-        for completed, future in enumerate(as_completed(futures), start=1):
-            cancellation.raise_if_cancelled()
-            index, code, path = futures[future]
-            inspected[index] = (code, future.result())
-            percent = 5 + int(20 * completed / len(candidates))
+    cache_entries: dict[str, dict] = {}
+    pending: list[
+        tuple[
+            int,
+            Path,
+            str,
+            str,
+            str,
+            dict | None,
+            tuple[SceneRange, ...] | None,
+        ]
+    ] = []
+    completed = 0
+    for index, (path, code) in enumerate(candidates):
+        relative = path.relative_to(project.root).as_posix()
+        item_metadata = manifest_metadata.get(path.name, {})
+        fingerprint = _footage_fingerprint(path, relative, item_metadata)
+        cached_metadata = _cached_inventory_entry(
+            inventory_cache.get(relative), fingerprint, config
+        )
+        cached_scenes = (
+            _load_scene_cache(project, fingerprint, config)
+            if cached_metadata is not None
+            else None
+        )
+        if cached_metadata is not None and cached_scenes is not None:
+            inspected[index] = (
+                code,
+                _source_from_inventory_entry(path, cached_metadata, cached_scenes, config),
+            )
+            cache_entries[relative] = cached_metadata
+            completed += 1
+            _report_inventory_progress(
+                progress, completed, len(candidates), path, cached=True
+            )
+        else:
+            if cached_metadata is not None:
+                cache_entries[relative] = cached_metadata
+            pending.append(
+                (
+                    index,
+                    path,
+                    code,
+                    relative,
+                    fingerprint,
+                    cached_metadata,
+                    cached_scenes,
+                )
+            )
+
+    try:
+        if pending:
+            worker_count = min(config.analysis_workers, len(pending))
             progress(
                 VideoBuilderProgress(
                     "video_plan",
                     "running",
-                    percent,
-                    f"Analyzed footage {completed}/{len(candidates)} · {path.name}",
+                    5 + int(20 * completed / len(candidates)),
+                    f"Scanning {len(pending)} footage · {worker_count} workers",
                 )
             )
+            with ThreadPoolExecutor(
+                max_workers=worker_count,
+                thread_name_prefix="storyflow-analysis",
+            ) as executor:
+                futures = {
+                    executor.submit(
+                        _inspect_inventory_source,
+                        path,
+                        fingerprint,
+                        manifest_metadata.get(path.name, {}),
+                        cached_metadata,
+                        cached_scenes,
+                        duration_probe,
+                        media_probe,
+                        scene_detector,
+                        config,
+                        cancellation,
+                    ): (
+                        index,
+                        code,
+                        path,
+                        relative,
+                        fingerprint,
+                        cached_scenes,
+                    )
+                    for (
+                        index,
+                        path,
+                        code,
+                        relative,
+                        fingerprint,
+                        cached_metadata,
+                        cached_scenes,
+                    ) in pending
+                }
+                for future in as_completed(futures):
+                    cancellation.raise_if_cancelled()
+                    index, code, path, relative, fingerprint, cached_scenes = futures[
+                        future
+                    ]
+                    source, entry = future.result()
+                    inspected[index] = (code, source)
+                    cache_entries[relative] = entry
+                    if cached_scenes is None:
+                        _write_scene_cache(project, fingerprint, config, source.scenes)
+                    completed += 1
+                    _report_inventory_progress(
+                        progress, completed, len(candidates), path, cached=False
+                    )
+    finally:
+        if cache_entries:
+            _write_inventory_cache(project, cache_entries)
 
     # Futures complete out of order; append by the original sorted path order so
     # identical inputs continue to produce deterministic timeline candidates.
@@ -637,36 +765,553 @@ def _load_inventory(
 
 def _inspect_inventory_source(
     path: Path,
-    metadata: dict[str, float | int],
+    fingerprint: str,
+    manifest_metadata: dict[str, float | int],
+    cached_metadata: dict | None,
+    cached_scenes: tuple[SceneRange, ...] | None,
     duration_probe: DurationProbe,
+    media_probe: MediaProbe,
     scene_detector: SceneDetector,
     config: VideoBuilderSettings,
-) -> _Source:
-    probed = duration_probe(path)
-    manifest_duration = metadata.get("duration")
-    duration = max(
-        0.1,
-        float(probed or manifest_duration or config.max_cut_seconds),
-    )
-    width = int(metadata.get("width") or 0)
-    height = int(metadata.get("height") or 0)
-    try:
-        scenes = scene_detector.detect(
-            path,
-            duration,
-            config.scene_threshold,
-            config.scene_min_seconds,
+    cancellation: Cancellation,
+) -> tuple[_Source, dict]:
+    if cached_metadata is not None:
+        entry = cached_metadata
+    else:
+        media = media_probe(path)
+        probed_duration = media.duration if media is not None else duration_probe(path)
+        manifest_duration = manifest_metadata.get("duration")
+        duration = max(
+            0.1,
+            float(
+                probed_duration
+                or manifest_duration
+                or config.max_cut_seconds
+            ),
         )
-    except (OSError, ValueError, VisualAnalysisError):
-        scenes = (SceneRange(0, 0.0, duration),)
+        width = int(
+            (media.width if media is not None else 0)
+            or manifest_metadata.get("width")
+            or 0
+        )
+        height = int(
+            (media.height if media is not None else 0)
+            or manifest_metadata.get("height")
+            or 0
+        )
+        entry = {
+            "fingerprint": fingerprint,
+            "duration": duration,
+            "duration_verified": probed_duration is not None,
+            "duration_source": (
+                "probe"
+                if probed_duration is not None
+                else "manifest"
+                if manifest_duration
+                else "estimate"
+            ),
+            "width": width,
+            "height": height,
+            "fps": media.fps if media is not None else 0.0,
+            "codec": media.codec if media is not None else "",
+        }
+    duration = float(entry["duration"])
+    scenes = cached_scenes
+    if scenes is None:
+        try:
+            if isinstance(scene_detector, FFmpegSceneDetector):
+                scenes = scene_detector.detect(
+                    path,
+                    duration,
+                    config.scene_threshold,
+                    config.scene_min_seconds,
+                    cancellation=cancellation,
+                )
+            else:
+                scenes = scene_detector.detect(
+                    path,
+                    duration,
+                    config.scene_threshold,
+                    config.scene_min_seconds,
+                )
+        except (OSError, ValueError, VisualAnalysisError):
+            scenes = (SceneRange(0, 0.0, duration),)
+    return _source_from_inventory_entry(path, entry, scenes, config), entry
+
+
+def _source_from_inventory_entry(
+    path: Path,
+    entry: dict,
+    scenes: tuple[SceneRange, ...],
+    config: VideoBuilderSettings,
+) -> _Source:
+    duration = max(0.1, float(entry["duration"]))
+    verified = bool(entry.get("duration_verified", False))
+    width = max(0, int(entry.get("width") or 0))
+    height = max(0, int(entry.get("height") or 0))
     return _Source(
         path,
         duration,
-        probed is not None,
+        verified,
         width,
         height,
-        _technical_score(probed is not None, width, height, config),
+        _technical_score(verified, width, height, config),
         scenes,
+        str(entry.get("fingerprint") or ""),
+    )
+
+
+def _report_inventory_progress(
+    progress: Callable[[VideoBuilderProgress], None],
+    completed: int,
+    total: int,
+    path: Path,
+    *,
+    cached: bool,
+) -> None:
+    percent = 5 + int(20 * completed / max(1, total))
+    action = "Cached" if cached else "Analyzed"
+    progress(
+        VideoBuilderProgress(
+            "video_plan",
+            "running",
+            percent,
+            f"{action} footage {completed}/{total} · {path.name}",
+        )
+    )
+
+
+def _footage_fingerprint(
+    path: Path, relative: str, manifest_metadata: dict[str, float | int]
+) -> str:
+    stat = path.stat()
+    payload = {
+        "path": relative,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "manifest": manifest_metadata,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _analysis_cache_root(project: Project) -> Path:
+    return project.metadata_dir / "video-builder" / "cache"
+
+
+def _clear_analysis_cache(project: Project) -> int:
+    root = _analysis_cache_root(project)
+    try:
+        resolved_root = root.resolve()
+        resolved_metadata = project.metadata_dir.resolve()
+        resolved_root.relative_to(resolved_metadata)
+    except (OSError, ValueError) as exc:
+        raise VideoBuilderWorkflowError("Video Builder cache path không hợp lệ.") from exc
+    if not root.exists():
+        return 0
+    if not root.is_dir():
+        raise VideoBuilderWorkflowError("Video Builder cache path không phải thư mục.")
+    removed = sum(1 for path in root.rglob("*") if path.is_file())
+    shutil.rmtree(root)
+    return removed
+
+
+def _load_inventory_cache(project: Project) -> dict[str, dict]:
+    path = _analysis_cache_root(project) / "inventory.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        return {}
+    entries = payload.get("entries")
+    return entries if isinstance(entries, dict) else {}
+
+
+def _cached_inventory_entry(
+    value: object, fingerprint: str, config: VideoBuilderSettings
+) -> dict | None:
+    if not isinstance(value, dict) or value.get("fingerprint") != fingerprint:
+        return None
+    try:
+        duration = float(value["duration"])
+        width = int(value.get("width") or 0)
+        height = int(value.get("height") or 0)
+        fps = float(value.get("fps") or 0)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if duration <= 0 or width < 0 or height < 0 or fps < 0:
+        return None
+    duration_source = str(value.get("duration_source") or "")
+    if duration_source not in {"probe", "manifest", "estimate"}:
+        return None
+    if duration_source == "estimate" and abs(duration - config.max_cut_seconds) > 0.001:
+        return None
+    return {
+        "fingerprint": fingerprint,
+        "duration": duration,
+        "duration_verified": bool(value.get("duration_verified", False)),
+        "duration_source": duration_source,
+        "width": width,
+        "height": height,
+        "fps": fps,
+        "codec": str(value.get("codec") or ""),
+    }
+
+
+def _write_inventory_cache(project: Project, entries: dict[str, dict]) -> None:
+    _atomic_json(
+        _analysis_cache_root(project) / "inventory.json",
+        {"schema_version": 1, "entries": entries},
+    )
+
+
+def _scene_cache_path(
+    project: Project, fingerprint: str, config: VideoBuilderSettings
+) -> Path:
+    settings_key = hashlib.sha256(
+        (
+            f"{config.scene_threshold:.6f}:"
+            f"{config.scene_min_seconds:.6f}"
+        ).encode("ascii")
+    ).hexdigest()[:16]
+    return _analysis_cache_root(project) / "scenes" / f"{fingerprint}-{settings_key}.json"
+
+
+def _load_scene_cache(
+    project: Project, fingerprint: str, config: VideoBuilderSettings
+) -> tuple[SceneRange, ...] | None:
+    path = _scene_cache_path(project, fingerprint, config)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        rows = payload["scenes"]
+    except (FileNotFoundError, OSError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != SCENE_CACHE_SCHEMA_VERSION
+        or payload.get("footage_fingerprint") != fingerprint
+        or not isinstance(rows, list)
+        or not rows
+    ):
+        return None
+    scenes: list[SceneRange] = []
+    previous_end = 0.0
+    try:
+        for index, row in enumerate(rows):
+            start = float(row["start"])
+            end = float(row["end"])
+            if start < 0 or end <= start or start + 0.01 < previous_end:
+                return None
+            scenes.append(SceneRange(index, start, end))
+            previous_end = end
+    except (KeyError, TypeError, ValueError):
+        return None
+    return tuple(scenes)
+
+
+def _write_scene_cache(
+    project: Project,
+    fingerprint: str,
+    config: VideoBuilderSettings,
+    scenes: tuple[SceneRange, ...],
+) -> None:
+    _atomic_json(
+        _scene_cache_path(project, fingerprint, config),
+        {
+            "schema_version": SCENE_CACHE_SCHEMA_VERSION,
+            "footage_fingerprint": fingerprint,
+            "scene_threshold": config.scene_threshold,
+            "scene_min_seconds": config.scene_min_seconds,
+            "scenes": [asdict(scene) for scene in scenes],
+        },
+    )
+
+
+def _load_plan_cache(
+    project: Project,
+    beat: dict,
+    sources: list[_Source],
+    config: VideoBuilderSettings,
+    semantics: dict[str, str],
+    visual_model: str,
+    history: list[tuple[Path, float, float]],
+    cut_offset: int,
+) -> tuple[list[_Cut], list[tuple[Path, float, float]]] | None:
+    cache_key = _plan_cache_key(
+        project, beat, sources, config, semantics, visual_model, history
+    )
+    path = _plan_cache_path(project, str(beat["code"]).upper(), cache_key)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        rows = payload["cuts"]
+        history_rows = payload["history"]
+    except (FileNotFoundError, OSError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != 1
+        or payload.get("cache_key") != cache_key
+        or not isinstance(rows, list)
+        or not isinstance(history_rows, list)
+    ):
+        return None
+    try:
+        cuts = [
+            _cut_from_plan_cache(row, cut_offset + index)
+            for index, row in enumerate(rows, start=1)
+        ]
+        cached_history = [
+            (
+                (project.root / str(row["path"])).resolve(),
+                float(row["start"]),
+                float(row["end"]),
+            )
+            for row in history_rows
+            if isinstance(row, dict)
+        ]
+    except (KeyError, TypeError, ValueError):
+        return None
+    return cuts, cached_history
+
+
+def _write_plan_cache(
+    project: Project,
+    beat: dict,
+    sources: list[_Source],
+    config: VideoBuilderSettings,
+    semantics: dict[str, str],
+    visual_model: str,
+    history_before: list[tuple[Path, float, float]],
+    cuts: list[_Cut],
+    history_added: list[tuple[Path, float, float]],
+) -> None:
+    cache_key = _plan_cache_key(
+        project, beat, sources, config, semantics, visual_model, history_before
+    )
+    _atomic_json(
+        _plan_cache_path(project, str(beat["code"]).upper(), cache_key),
+        {
+            "schema_version": 1,
+            "cache_key": cache_key,
+            "beat": str(beat["code"]).upper(),
+            "cuts": [asdict(cut) for cut in cuts],
+            "history": _history_signature(project, history_added),
+        },
+    )
+
+
+def _plan_cache_path(project: Project, code: str, cache_key: str) -> Path:
+    safe_code = re.sub(r"[^A-Z0-9_-]+", "-", code.upper()).strip("-") or "beat"
+    return _analysis_cache_root(project) / "plans" / f"{safe_code}-{cache_key}.json"
+
+
+def _plan_cache_key(
+    project: Project,
+    beat: dict,
+    sources: list[_Source],
+    config: VideoBuilderSettings,
+    semantics: dict[str, str],
+    visual_model: str,
+    history: list[tuple[Path, float, float]],
+) -> str:
+    payload = {
+        "beat": {
+            "code": str(beat.get("code", "")).upper(),
+            "start": round(float(beat.get("start_seconds", 0.0)), 6),
+            "end": round(float(beat.get("end_seconds", 0.0)), 6),
+            "narration": str(beat.get("narration", "")),
+        },
+        "settings": asdict(config),
+        "semantics": semantics,
+        "visual_model": visual_model,
+        "sources": [
+            {
+                "path": source.path.relative_to(project.root).as_posix(),
+                "fingerprint": source.fingerprint,
+                "duration": round(source.duration, 6),
+                "duration_verified": source.duration_verified,
+                "width": source.width,
+                "height": source.height,
+                "technical_score": source.technical_score,
+                "scenes": [
+                    {
+                        "index": scene.index,
+                        "start": round(scene.start, 6),
+                        "end": round(scene.end, 6),
+                    }
+                    for scene in source.scenes
+                ],
+            }
+            for source in sources
+        ],
+        "history": _history_signature(project, history),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _history_signature(
+    project: Project, history: list[tuple[Path, float, float]]
+) -> list[dict[str, str | float]]:
+    rows: list[dict[str, str | float]] = []
+    for path, start, end in history:
+        try:
+            relative = path.relative_to(project.root).as_posix()
+        except ValueError:
+            relative = path.as_posix()
+        rows.append(
+            {
+                "path": relative,
+                "start": round(float(start), 6),
+                "end": round(float(end), 6),
+            }
+        )
+    return rows
+
+
+def _cut_from_plan_cache(row: dict, cut_number: int) -> _Cut:
+    warnings = row.get("warnings", ())
+    if isinstance(warnings, str):
+        warnings = tuple(item.strip() for item in warnings.split("|") if item.strip())
+    return _Cut(
+        int(cut_number),
+        str(row["beat"]),
+        str(row.get("narration", "")),
+        float(row["timeline_start"]),
+        float(row["timeline_end"]),
+        float(row["duration"]),
+        str(row.get("footage", "")),
+        float(row.get("source_start", 0.0)),
+        float(row.get("source_end", 0.0)),
+        float(row.get("technical_score", 0.0)),
+        int(row.get("source_width", 0)),
+        int(row.get("source_height", 0)),
+        int(row.get("scene_index", -1)),
+        (
+            None
+            if row.get("semantic_score") is None
+            else float(row.get("semantic_score"))
+        ),
+        float(row.get("selection_score", 0.0)),
+        tuple(str(item) for item in warnings),
+    )
+
+
+def _semantic_score(
+    project: Project,
+    scorer: SemanticScorer,
+    text: str,
+    option: _SceneOption,
+) -> float:
+    timestamp = (option.start + option.end) / 2.0
+    cached = _load_semantic_cache(
+        project,
+        scorer.model_name,
+        option.source.fingerprint,
+        option.scene_index,
+        option.start,
+        option.end,
+        text,
+    )
+    if cached is not None:
+        return cached
+    score = scorer.score(text, option.source.path, timestamp)
+    _write_semantic_cache(
+        project,
+        scorer.model_name,
+        option.source.fingerprint,
+        option.scene_index,
+        option.start,
+        option.end,
+        text,
+        score,
+    )
+    return score
+
+
+def _semantic_cache_path(
+    project: Project,
+    model_name: str,
+    footage_fingerprint: str,
+    scene_index: int,
+    start: float,
+    end: float,
+    text: str,
+) -> Path:
+    payload = {
+        "model": model_name,
+        "footage_fingerprint": footage_fingerprint,
+        "scene_index": scene_index,
+        "start": round(start, 3),
+        "end": round(end, 3),
+        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    }
+    key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    model_key = hashlib.sha256(model_name.encode("utf-8")).hexdigest()[:16]
+    return _analysis_cache_root(project) / "semantic" / model_key / f"{key}.json"
+
+
+def _load_semantic_cache(
+    project: Project,
+    model_name: str,
+    footage_fingerprint: str,
+    scene_index: int,
+    start: float,
+    end: float,
+    text: str,
+) -> float | None:
+    path = _semantic_cache_path(
+        project, model_name, footage_fingerprint, scene_index, start, end, text
+    )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        score = float(payload["score"])
+    except (FileNotFoundError, OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != 1
+        or payload.get("model") != model_name
+        or payload.get("footage_fingerprint") != footage_fingerprint
+        or int(payload.get("scene_index", -1)) != scene_index
+        or str(payload.get("text_sha256", ""))
+        != hashlib.sha256(text.encode("utf-8")).hexdigest()
+        or not 0.0 <= score <= 1.0
+    ):
+        return None
+    return round(score, 6)
+
+
+def _write_semantic_cache(
+    project: Project,
+    model_name: str,
+    footage_fingerprint: str,
+    scene_index: int,
+    start: float,
+    end: float,
+    text: str,
+    score: float,
+) -> None:
+    if not footage_fingerprint:
+        return
+    bounded = round(max(0.0, min(1.0, float(score))), 6)
+    _atomic_json(
+        _semantic_cache_path(
+            project, model_name, footage_fingerprint, scene_index, start, end, text
+        ),
+        {
+            "schema_version": 1,
+            "model": model_name,
+            "footage_fingerprint": footage_fingerprint,
+            "scene_index": scene_index,
+            "start": round(start, 6),
+            "end": round(end, 6),
+            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "score": bounded,
+        },
     )
 
 
@@ -787,10 +1432,11 @@ def _plan_beat(
             cache_key = (option.source.path, option.scene_index, positive_text)
             if cache_key not in score_cache:
                 try:
-                    score_cache[cache_key] = semantic_scorer.score(
+                    score_cache[cache_key] = _semantic_score(
+                        project,
+                        semantic_scorer,
                         positive_text,
-                        option.source.path,
-                        (option.start + option.end) / 2.0,
+                        option,
                     )
                 except VisualAnalysisError as exc:
                     raise VideoBuilderWorkflowError(str(exc)) from exc
@@ -800,10 +1446,11 @@ def _plan_beat(
                 avoid_key = (option.source.path, option.scene_index, avoid_text)
                 if avoid_key not in score_cache:
                     try:
-                        score_cache[avoid_key] = semantic_scorer.score(
+                        score_cache[avoid_key] = _semantic_score(
+                            project,
+                            semantic_scorer,
                             avoid_text,
-                            option.source.path,
-                            (option.start + option.end) / 2.0,
+                            option,
                         )
                     except VisualAnalysisError as exc:
                         raise VideoBuilderWorkflowError(str(exc)) from exc

@@ -7,6 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 
+from storyflow_studio.core.media import MediaInfo
 from storyflow_studio.core.settings import AppSettings, VideoBuilderSettings
 from storyflow_studio.modules.tts import CancellationToken
 from storyflow_studio.modules.video_builder import (
@@ -14,6 +15,7 @@ from storyflow_studio.modules.video_builder import (
     VideoBuilderWorkflowError,
     VideoRenderResult,
 )
+from storyflow_studio.modules.video_builder import service as video_builder_service_module
 from storyflow_studio.modules.video_builder.visual import SceneRange
 from storyflow_studio.modules.workspace import WorkspaceService
 
@@ -268,6 +270,116 @@ class VideoBuilderServiceTests(unittest.TestCase):
             }
             self.assertGreater(len(h01_windows), 1)
 
+    def test_analyze_again_reuses_semantic_score_cache(self) -> None:
+        class Scenes:
+            def detect(self, path, duration, threshold, minimum):
+                return (SceneRange(0, 0.0, duration),)
+
+        class CountingScorer:
+            model_name = "openai/clip-vit-base-patch32"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def score(self, text, path, timestamp):
+                self.calls += 1
+                return 0.8
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            scorer = CountingScorer()
+            settings = AppSettings(
+                video_builder=VideoBuilderSettings(
+                    visual_model="openai/clip-vit-base-patch32",
+                )
+            )
+            service = VideoBuilderService(
+                duration_probe=lambda _path: 12.0,
+                scene_detector=Scenes(),
+                semantic_scorer_factory=lambda *_args: scorer,
+            )
+            first = service.analyze(
+                project, settings, lambda _update: None, CancellationToken()
+            )
+            first_calls = scorer.calls
+            first_score = json.loads(first.timeline_file.read_text(encoding="utf-8"))[
+                "timeline"
+            ][0]["semantic_score"]
+            self.assertGreater(first_calls, 0)
+
+            second = service.analyze(
+                project,
+                settings,
+                lambda _update: None,
+                CancellationToken(),
+                replace_existing=True,
+            )
+
+            self.assertEqual(scorer.calls, first_calls)
+            self.assertEqual(
+                first_score,
+                json.loads(second.timeline_file.read_text(encoding="utf-8"))[
+                    "timeline"
+                ][0]["semantic_score"],
+            )
+
+    def test_analyze_again_reuses_cached_beat_plans(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            service = VideoBuilderService(
+                duration_probe=lambda _path: 12.0,
+                media_probe=lambda _path: None,
+            )
+            first = service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+            first_rows = json.loads(first.timeline_file.read_text(encoding="utf-8"))[
+                "timeline"
+            ]
+            original_plan_beat = video_builder_service_module._plan_beat
+
+            def fail_plan(*_args, **_kwargs):
+                raise AssertionError("beat plan cache was not reused")
+
+            video_builder_service_module._plan_beat = fail_plan
+            try:
+                second = service.analyze(
+                    project,
+                    AppSettings(),
+                    lambda _update: None,
+                    CancellationToken(),
+                    replace_existing=True,
+                )
+            finally:
+                video_builder_service_module._plan_beat = original_plan_beat
+
+            second_rows = json.loads(second.timeline_file.read_text(encoding="utf-8"))[
+                "timeline"
+            ]
+            self.assertEqual(first_rows, second_rows)
+            self.assertTrue(
+                (project.metadata_dir / "video-builder" / "cache" / "plans").is_dir()
+            )
+
+    def test_clear_analysis_cache_removes_video_builder_cache_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            service = VideoBuilderService(
+                duration_probe=lambda _path: 12.0,
+                media_probe=lambda _path: None,
+            )
+            service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+            cache_root = project.metadata_dir / "video-builder" / "cache"
+            timeline_file = project.path_for("video_timeline_file")
+
+            removed = service.clear_analysis_cache(project)
+
+            self.assertGreater(removed, 0)
+            self.assertFalse(cache_root.exists())
+            self.assertTrue(timeline_file.is_file())
+
     def test_analysis_workers_scan_footage_concurrently(self) -> None:
         class ConcurrentScenes:
             def __init__(self) -> None:
@@ -301,6 +413,174 @@ class VideoBuilderServiceTests(unittest.TestCase):
             self.assertEqual(len(scenes.thread_ids), 2)
             self.assertTrue(
                 any("Analyzed footage 2/2" in update.message for update in updates)
+            )
+
+    def test_analyze_again_reuses_inventory_and_scene_cache(self) -> None:
+        class CountingScenes:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def detect(self, path, duration, threshold, minimum):
+                self.calls += 1
+                return (SceneRange(0, 0.0, duration),)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            scenes = CountingScenes()
+            duration_calls = []
+
+            def duration_probe(path):
+                duration_calls.append(path)
+                return 12.0
+
+            service = VideoBuilderService(
+                duration_probe=duration_probe,
+                media_probe=lambda _path: None,
+                scene_detector=scenes,
+            )
+            service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+            updates = []
+            service.analyze(
+                project,
+                AppSettings(),
+                updates.append,
+                CancellationToken(),
+                replace_existing=True,
+            )
+
+            self.assertEqual(scenes.calls, 2)
+            self.assertEqual(len(duration_calls), 2)
+            self.assertTrue(
+                any("Cached footage 2/2" in update.message for update in updates)
+            )
+            self.assertTrue(
+                (
+                    project.metadata_dir
+                    / "video-builder"
+                    / "cache"
+                    / "inventory.json"
+                ).is_file()
+            )
+
+    def test_footage_change_invalidates_only_that_file_cache(self) -> None:
+        class CountingScenes:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def detect(self, path, duration, threshold, minimum):
+                self.calls += 1
+                return (SceneRange(0, 0.0, duration),)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            scenes = CountingScenes()
+            duration_calls = []
+
+            def duration_probe(path):
+                duration_calls.append(path)
+                return 12.0
+
+            service = VideoBuilderService(
+                duration_probe=duration_probe,
+                media_probe=lambda _path: None,
+                scene_detector=scenes,
+            )
+            service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+            changed = project.path_for("footage_dir") / "H01_PEXELS_101.mp4"
+            changed.write_bytes(changed.read_bytes() + b"-changed")
+            updates = []
+
+            service.analyze(
+                project,
+                AppSettings(),
+                updates.append,
+                CancellationToken(),
+                replace_existing=True,
+            )
+
+            self.assertEqual(scenes.calls, 3)
+            self.assertEqual(len(duration_calls), 3)
+            self.assertEqual(
+                sum("Cached footage" in update.message for update in updates), 1
+            )
+            self.assertEqual(
+                sum("Analyzed footage" in update.message for update in updates), 1
+            )
+
+    def test_scene_setting_change_reuses_metadata_but_redetects_scenes(self) -> None:
+        class CountingScenes:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def detect(self, path, duration, threshold, minimum):
+                self.calls += 1
+                return (SceneRange(0, 0.0, duration),)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            scenes = CountingScenes()
+            duration_calls = []
+
+            def duration_probe(path):
+                duration_calls.append(path)
+                return 12.0
+
+            service = VideoBuilderService(
+                duration_probe=duration_probe,
+                media_probe=lambda _path: None,
+                scene_detector=scenes,
+            )
+            service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+            changed_settings = AppSettings(
+                video_builder=VideoBuilderSettings(scene_threshold=0.45)
+            )
+
+            service.analyze(
+                project,
+                changed_settings,
+                lambda _update: None,
+                CancellationToken(),
+                replace_existing=True,
+            )
+
+            self.assertEqual(len(duration_calls), 2)
+            self.assertEqual(scenes.calls, 4)
+
+    def test_media_probe_supplies_verified_dimensions_without_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.create_ready_project(Path(directory))
+            service = VideoBuilderService(
+                duration_probe=lambda _path: self.fail(
+                    "duration fallback should not run when media probe succeeds"
+                ),
+                media_probe=lambda _path: MediaInfo(
+                    duration=12.0,
+                    width=1920,
+                    height=1080,
+                    fps=29.97,
+                    codec="h264",
+                ),
+            )
+
+            result = service.analyze(
+                project, AppSettings(), lambda _update: None, CancellationToken()
+            )
+
+            report = json.loads(result.timeline_file.read_text(encoding="utf-8"))
+            self.assertTrue(
+                all(row["source_width"] == 1920 for row in report["timeline"])
+            )
+            self.assertTrue(
+                all(row["source_height"] == 1080 for row in report["timeline"])
+            )
+            self.assertTrue(
+                all(row["technical_score"] == 1.0 for row in report["timeline"])
             )
 
     def test_replace_clip_updates_json_and_csv_atomically(self) -> None:

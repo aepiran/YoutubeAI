@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -27,8 +28,19 @@ class SceneRange:
 
 class SceneDetector(Protocol):
     def detect(
-        self, path: Path, duration: float, threshold: float, minimum: float
+        self,
+        path: Path,
+        duration: float,
+        threshold: float,
+        minimum: float,
     ) -> tuple[SceneRange, ...]: ...
+
+
+class Cancellation(Protocol):
+    @property
+    def cancelled(self) -> bool: ...
+
+    def raise_if_cancelled(self) -> None: ...
 
 
 class SemanticScorer(Protocol):
@@ -40,16 +52,26 @@ class SemanticScorer(Protocol):
 class FFmpegSceneDetector:
     """Detect scene boundaries with FFmpeg and fall back to one safe range."""
 
+    def __init__(self, scan_width: int = 426) -> None:
+        self.scan_width = max(0, int(scan_width))
+
     def detect(
-        self, path: Path, duration: float, threshold: float, minimum: float
+        self,
+        path: Path,
+        duration: float,
+        threshold: float,
+        minimum: float,
+        *,
+        cancellation: Cancellation | None = None,
     ) -> tuple[SceneRange, ...]:
         fallback = (SceneRange(0, 0.0, max(0.1, duration)),)
         executable = shutil.which("ffmpeg")
         if not executable or not path.is_file() or duration <= 0:
             return fallback
-        filter_value = f"select='gt(scene,{threshold:.4f})',showinfo"
+        filter_value = _scene_filter(threshold, self.scan_width)
+        process: subprocess.Popen[str] | None = None
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 [
                     executable,
                     "-hide_banner",
@@ -64,15 +86,34 @@ class FFmpegSceneDetector:
                     "null",
                     "-",
                 ],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=max(20, min(300, int(math.ceil(duration * 2.0)))),
+                encoding="utf-8",
+                errors="replace",
                 creationflags=WINDOWS_NO_WINDOW,
             )
+            deadline = time.monotonic() + max(
+                20, min(300, int(math.ceil(duration * 2.0)))
+            )
+            while True:
+                try:
+                    _stdout, stderr = process.communicate(timeout=0.25)
+                    break
+                except subprocess.TimeoutExpired:
+                    if cancellation is not None and cancellation.cancelled:
+                        _terminate_process(process)
+                        cancellation.raise_if_cancelled()
+                    if time.monotonic() >= deadline:
+                        _terminate_process(process)
+                        return fallback
         except (OSError, subprocess.SubprocessError):
             return fallback
+        finally:
+            if process is not None and process.poll() is None:
+                process.kill()
         boundaries = [0.0]
-        for match in re.finditer(r"pts_time:([0-9]+(?:\.[0-9]+)?)", result.stderr):
+        for match in re.finditer(r"pts_time:([0-9]+(?:\.[0-9]+)?)", stderr):
             value = float(match.group(1))
             if value - boundaries[-1] >= minimum and duration - value >= minimum:
                 boundaries.append(value)
@@ -83,6 +124,26 @@ class FFmpegSceneDetector:
             if end - start >= minimum
         )
         return scenes or fallback
+
+
+def _scene_filter(threshold: float, scan_width: int) -> str:
+    scene_select = f"select='gt(scene,{threshold:.4f})',showinfo"
+    if scan_width <= 0:
+        return scene_select
+    return (
+        f"scale=w='min({scan_width},iw)':h=-2:flags=fast_bilinear,"
+        f"{scene_select}"
+    )
+
+
+def _terminate_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 class HuggingFaceSemanticScorer:

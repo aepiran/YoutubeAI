@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "storyflow-studio"
-version = "0.3.2"
+version = "0.3.3"
 description = "Modular desktop workflow from script to voice, beats, and footage"
 readme = "README.md"
 requires-python = ">=3.10"

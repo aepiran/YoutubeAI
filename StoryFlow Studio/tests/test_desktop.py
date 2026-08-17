@@ -278,6 +278,7 @@ class FakeVideoBuilderService:
         self.replace_flags: list[bool] = []
         self.review_stale = False
         self.render_count = 0
+        self.clear_count = 0
 
     def analyze(
         self,
@@ -308,6 +309,10 @@ class FakeVideoBuilderService:
             )
         )
         return TimelineAnalysisResult(timeline_file, timeline_csv, 2, 1, 8.0)
+
+    def clear_analysis_cache(self, project):
+        self.clear_count += 1
+        return 3
 
     def review(self, project, settings):
         return TimelineReviewResult(
@@ -1295,6 +1300,7 @@ class DesktopSmokeTests(unittest.TestCase):
             window.set_project(project)
             self.wait_for_jobs(window)
             self.assertTrue(window.run_video_builder_button.isEnabled())
+            self.assertTrue(window.clear_video_cache_button.isEnabled())
 
             window.run_video_builder_analysis()
             self.wait_for_jobs(window)
@@ -1311,6 +1317,18 @@ class DesktopSmokeTests(unittest.TestCase):
             self.assertEqual(window.run_video_builder_button.text(), "Analyze Again")
             self.assertTrue(window.review_timeline_button.isEnabled())
             self.assertTrue(window.export_video_button.isEnabled())
+            with patch(
+                "storyflow_studio.desktop.main_window.QMessageBox.question",
+                return_value=QMessageBox.StandardButton.Yes,
+            ), patch(
+                "storyflow_studio.desktop.main_window.QMessageBox.information"
+            ):
+                window.clear_video_builder_cache()
+            self.assertEqual(builder_service.clear_count, 1)
+            self.assertIn(
+                "Cleared Video Builder analysis cache",
+                window.activity_console.toPlainText(),
+            )
 
             with patch(
                 "storyflow_studio.desktop.main_window.ExportChoiceDialog"

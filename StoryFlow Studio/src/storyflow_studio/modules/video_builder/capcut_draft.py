@@ -546,6 +546,9 @@ def create_capcut_draft(
     try:
         shutil.copytree(template_dir, target)
         media_root = target / OWNER_DIR
+        if media_root.exists():
+            shutil.rmtree(media_root)
+        media_root.mkdir(parents=True, exist_ok=True)
         shutil.copytree(package_dir / "scenes", media_root / "scenes")
         for name in (
             manifest["tracks"].get("narration"),

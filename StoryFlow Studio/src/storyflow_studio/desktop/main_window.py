@@ -553,6 +553,19 @@ class MainWindow(QMainWindow):
                 self.review_timeline_button.setEnabled(False)
                 self.review_timeline_button.clicked.connect(self.open_timeline_review)
                 card_header.addWidget(self.review_timeline_button)
+                self.clear_video_cache_button = QPushButton("Clear Cache")
+                self.clear_video_cache_button.setObjectName("StageActionButton")
+                self.clear_video_cache_button.setAccessibleName(
+                    "Clear Video Builder Cache"
+                )
+                self.clear_video_cache_button.setToolTip(
+                    "Remove cached footage scan, scene, semantic and beat-plan analysis data"
+                )
+                self.clear_video_cache_button.setEnabled(False)
+                self.clear_video_cache_button.clicked.connect(
+                    self.clear_video_builder_cache
+                )
+                card_header.addWidget(self.clear_video_cache_button)
                 self.export_video_button = QPushButton("Export")
                 self.export_video_button.setObjectName("StageActionButton")
                 self.export_video_button.setAccessibleName("Export Video Builder Output")
@@ -2051,6 +2064,37 @@ class MainWindow(QMainWindow):
         self.active_timeline_review_dialog = None
 
     @Slot()
+    def clear_video_builder_cache(self) -> None:
+        if self.current_project is None or self.video_builder_running:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Clear Video Builder Cache",
+            "Clear reusable Video Builder analysis cache for this project?\n\n"
+            "Timeline JSON/CSV, footage and exported videos are preserved.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            removed = self.video_builder_service.clear_analysis_cache(
+                self.current_project
+            )
+        except (OSError, ValueError, VideoBuilderWorkflowError) as exc:
+            QMessageBox.critical(self, "Clear Video Builder Cache", str(exc))
+            return
+        self.append_log(
+            f"Cleared Video Builder analysis cache · {removed} cached files removed.",
+            "VIDEO",
+        )
+        QMessageBox.information(
+            self,
+            "Clear Video Builder Cache",
+            f"Removed {removed} cached files.",
+        )
+
+    @Slot()
     def _retry_missing_footage(self) -> None:
         self.append_log(
             "Timeline Review requested Retry Missing via Footage Finder.", "VIDEO"
@@ -2617,6 +2661,7 @@ class MainWindow(QMainWindow):
         )
         self.run_video_builder_button.setEnabled(video_inputs_ready and not ui_busy)
         self.review_timeline_button.setEnabled(video_plan_exists and not ui_busy)
+        self.clear_video_cache_button.setEnabled(project is not None and not ui_busy)
         final_video_exists = bool(
             project and project.path_for("final_video_file").is_file()
         )
