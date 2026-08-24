@@ -56,6 +56,30 @@ class SettingsStoreTests(unittest.TestCase):
                 AISettings("custom", "default"),
             )
 
+    def test_round_trip_ai_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            store = SettingsStore(path)
+            store.save_ai(AISettings("claude-opus-5", "high", "claude"))
+
+            self.assertEqual(
+                store.load_ai(), AISettings("claude-opus-5", "high", "claude")
+            )
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(raw["ai"]["provider"], "claude")
+
+    def test_invalid_ai_provider_falls_back_to_codex(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            path.write_text(
+                '{"ai":{"model":"custom","provider":"unknown"}}',
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                SettingsStore(path).load_ai(),
+                AISettings("custom", "default", "codex"),
+            )
+
     def test_full_settings_round_trip_keeps_api_key_out_of_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"

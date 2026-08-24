@@ -4,7 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from storyflow_studio.core.settings import AppSettings, TTSSettings
+from storyflow_studio.core.settings import (
+    AISettings,
+    AppSettings,
+    TTSSettings,
+    WorkspaceSettings,
+)
+from storyflow_studio.modules.ai import SCREEN_SRT_DNA_SKILL, TTS_DNA_SKILL
 from storyflow_studio.modules.tts import (
     CancellationToken,
     ScreenSubtitleService,
@@ -25,7 +31,7 @@ class FakeAIService:
         self.response = response
         self.calls: list[tuple[str, Path, object]] = []
 
-    def run(self, prompt, workdir, settings) -> str:
+    def run(self, prompt, workdir, settings, *, skill=None) -> str:
         self.calls.append((prompt, Path(workdir), settings))
         if "<SCREEN_SRT_VERIFICATION>" in prompt:
             return '{"valid": true, "errors": []}'
@@ -44,7 +50,7 @@ class SequenceAIService:
         self.verification_responses = list(verification_responses or [])
         self.calls: list[str] = []
 
-    def run(self, prompt, workdir, settings) -> str:
+    def run(self, prompt, workdir, settings, *, skill=None) -> str:
         self.calls.append(prompt)
         if "<SCREEN_SRT_VERIFICATION>" in prompt:
             if self.verification_responses:
@@ -452,6 +458,73 @@ class TTSWorkflowServiceTests(unittest.TestCase):
             self.assertIn("<SCREEN_SRT_VERIFICATION>", ai.calls[2][0])
             self.assertEqual(updates[-1].stage, "voice")
             self.assertEqual(updates[-1].state, "completed")
+
+    def test_claude_provider_syncs_workspace_skill_for_tts_dna(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dna_path = root / "tts-dna.md"
+            dna_path.write_text("Only adjust line breaks.", encoding="utf-8")
+            workspace_root = root / "workspace"
+            settings = AppSettings(
+                ai=AISettings(provider="claude"),
+                workspace=WorkspaceSettings(workspace_root=str(workspace_root)),
+                tts=TTSSettings(dna_path=str(dna_path)),
+            )
+            project = WorkspaceService().create_project(
+                workspace_root, "Story", "story", settings
+            )
+            project.path_for("raw_script").write_text(
+                "Hello world. Second line.", encoding="utf-8"
+            )
+            ai = FakeAIService("Hello world.\n\nSecond line.")
+            service = TTSWorkflowService(ai)
+
+            service.generate_script(
+                project, settings, lambda _update: None, CancellationToken()
+            )
+
+            self.assertNotIn("Only adjust line breaks.", ai.calls[0][0])
+            self.assertIn(TTS_DNA_SKILL, ai.calls[0][0])
+            skill_file = (
+                workspace_root / ".claude" / "skills" / TTS_DNA_SKILL / "SKILL.md"
+            )
+            self.assertIn("Only adjust line breaks.", skill_file.read_text(encoding="utf-8"))
+
+    def test_claude_provider_syncs_workspace_skill_for_screen_srt_dna(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace_root = root / "workspace"
+            settings = AppSettings(
+                ai=AISettings(provider="claude"),
+                workspace=WorkspaceSettings(workspace_root=str(workspace_root)),
+            )
+            project = WorkspaceService().create_project(
+                workspace_root, "Story", "story", settings
+            )
+            project.path_for("tts_script").write_text("Hello world.", encoding="utf-8")
+            project.path_for("subtitle_file").write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nHello world.\n",
+                encoding="utf-8",
+            )
+            ai = FakeAIService("unused")
+            service = TTSWorkflowService(ai)
+
+            service.generate_screen_subtitles(
+                project, settings, lambda _update: None, CancellationToken()
+            )
+
+            self.assertNotIn("# StoryFlow Display SRT DNA", ai.calls[0][0])
+            self.assertIn(SCREEN_SRT_DNA_SKILL, ai.calls[0][0])
+            skill_file = (
+                workspace_root
+                / ".claude"
+                / "skills"
+                / SCREEN_SRT_DNA_SKILL
+                / "SKILL.md"
+            )
+            self.assertIn(
+                "# StoryFlow Display SRT DNA", skill_file.read_text(encoding="utf-8")
+            )
 
     def test_script_and_voice_can_be_generated_as_separate_steps(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -78,10 +78,10 @@ class FakeAIService:
             (ModelOption("gpt-test", "GPT Test", is_default=True),),
         )
 
-    def login_chatgpt(self) -> AISnapshot:
+    def login(self) -> AISnapshot:
         return self.snapshot()
 
-    def run(self, prompt, workdir, settings) -> str:
+    def run(self, prompt, workdir, settings, *, skill=None) -> str:
         if "<SCREEN_SRT_VERIFICATION>" in prompt:
             return '{"valid": true, "errors": []}'
         if "<NARRATION_SRT>" in prompt:
@@ -457,7 +457,7 @@ class DesktopSmokeTests(unittest.TestCase):
             self.assertFalse(window.logo_label.pixmap().isNull())
             self.assertFalse(window.windowIcon().isNull())
             self.assertTrue(window.snapshot.auth.authenticated)
-            self.assertIn("[CODEX] Codex connected", window.activity_console.toPlainText())
+            self.assertIn("[AI] Codex connected", window.activity_console.toPlainText())
             window.close()
 
     def test_failed_stage_copies_full_error_and_enables_model_download(self) -> None:

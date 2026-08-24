@@ -11,7 +11,7 @@ from .core.version import application_version
 from .desktop.branding import application_icon
 from .desktop.main_window import MainWindow
 from .desktop.theme import APP_STYLE_SHEET
-from .modules.ai.service import CodexAIService
+from .modules.ai import create_ai_service
 
 
 def create_application(argv: list[str] | None = None) -> QApplication:
@@ -27,9 +27,10 @@ def create_application(argv: list[str] | None = None) -> QApplication:
 
 def main() -> int:
     app = create_application()
+    settings_store = SettingsStore()
     window = MainWindow(
-        ai_service=CodexAIService(),
-        settings_store=SettingsStore(),
+        ai_service=create_ai_service(settings_store.load().ai.provider),
+        settings_store=settings_store,
     )
     window.showMaximized()
     return app.exec()

@@ -1,0 +1,25 @@
+{
+  "app": "TTS Script to MP3",
+  "version": "2.6.0",
+  "run_mode": "sequential",
+  "parallel_enabled": false,
+  "worker_count": 1,
+  "updated_at": "2026-08-23 20:32:01",
+  "segments": [
+    {
+      "index": 1,
+      "heading": "Segment 1",
+      "text": "and rewrite what the enemy thought was already settled\nif you are praying with me\nwherever you are in the world\nopen your heart surrender every fear to the Lord\nand believe that heaven\nis already moving on your behalf\nlet us pray Almighty God\nthe creator of heaven and earth\nthe Alpha and the Omega the beginning and the end\nthe one who spoke light into darkness\nand life into emptiness\ntoday I come before you with a grateful heart\nthank you for the priceless gift of life\nthank you for watching over me throughout the night\nwhile I slept you remained awake\nwhile I knew nothing about the dangers around me\nyour mighty angels stood guard over my home",
+      "word_count": 121,
+      "char_count": 651,
+      "output_file": "001.mp3",
+      "status": "done",
+      "progress": 1.0,
+      "job_id": "2e8488e3-5052-4e03-822b-961abc8c447b",
+      "audio_url": "https://www.aimaxstudio.com/audio/1615398_1787491917.mp3",
+      "srt_url": "https://www.aimaxstudio.com/audio/1615398_1787491917.srt",
+      "error": "",
+      "selected": true
+    }
+  ]
+}

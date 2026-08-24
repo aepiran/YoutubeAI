@@ -1,0 +1,25 @@
+{
+  "app": "TTS Script to MP3",
+  "version": "2.6.0",
+  "run_mode": "sequential",
+  "parallel_enabled": false,
+  "worker_count": 1,
+  "updated_at": "2026-08-23 21:08:59",
+  "segments": [
+    {
+      "index": 1,
+      "heading": "Segment 1",
+      "text": "Why do you feel broke, even after your paycheck hits your account? For years, you've done everything right — budgeting, saving, even tithing — but the stress never seems to disappear.\n\nThink about the Parable of the Talents. Scripture reminds us that a wise steward doesn't chase quick riches. They build slowly, with patience and diligence.\n\nLet's make this practical. If you're carrying three thousand dollars in credit card debt, start with just one extra payment of fifty dollars this month. That's it. Small, faithful steps compound over time.\n\nLord, thank you for walking with us through every financial season. Give us the wisdom to manage what You've entrusted to us. And give us the peace to trust You with the rest. Amen.",
+      "word_count": 123,
+      "char_count": 731,
+      "output_file": "001.mp3",
+      "status": "done",
+      "progress": 1.0,
+      "job_id": "d2199fb6-1bd5-4fc1-bb6d-6395bd332f41",
+      "audio_url": "https://www.aimaxstudio.com/api/v1/tts/audio/1615823",
+      "srt_url": "https://www.aimaxstudio.com/audio/1615823_1787494130.srt",
+      "error": "",
+      "selected": true
+    }
+  ]
+}

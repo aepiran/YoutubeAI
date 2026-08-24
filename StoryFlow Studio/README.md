@@ -104,7 +104,7 @@ nhầm Python toàn hệ thống.
 Sau khi hoàn thành `setup-windows.bat`, chạy:
 
 ```powershell
-.\build-windows.bat -Clean -StopRunningApp
+.\build-windows.bat -Clean -SkipTests -StopRunningApp
 ```
 
 Builder tự cài PyInstaller vào `.venv` nếu chưa có, chạy toàn bộ test, đóng gói
@@ -133,8 +133,37 @@ khóa thư mục. Đóng ứng dụng thủ công hoặc thêm `-StopRunningApp`
 lần để Windows và antivirus có thời gian nhả DLL.
 
 Nếu chưa đăng nhập, bấm nút `○ Codex` trên header hoặc mở Settings rồi chọn
-`Sign in with ChatGPT`. Browser sẽ mở luồng đăng nhập Codex. StoryFlow Studio
-không yêu cầu `OPENAI_API_KEY`.
+`Sign in`. Browser sẽ mở luồng đăng nhập Codex. StoryFlow Studio không yêu cầu
+`OPENAI_API_KEY`.
+
+### Dùng Claude thay Codex
+
+StoryFlow Studio cũng hỗ trợ Claude Code CLI làm AI Provider thay thế Codex,
+theo cùng nguyên tắc chỉ đăng nhập qua browser, không dùng API key.
+
+1. Cài dependency tuỳ chọn: `python -m pip install "claude-agent-sdk"` (hoặc
+   cài extra `storyflow-studio[claude]`). Gói này thường kèm sẵn Claude Code
+   CLI cho các nền tảng được hỗ trợ (ví dụ Windows x64); nếu máy không có bản
+   kèm sẵn, cài Claude Code CLI riêng theo hướng dẫn tại
+   [docs.claude.com/en/docs/claude-code/setup](https://docs.claude.com/en/docs/claude-code/setup).
+2. Chạy `claude auth login` một lần để đăng nhập bằng tài khoản Claude qua
+   browser (Claude Pro/Max, không phải API key).
+3. Mở `Settings → AI Provider`, chọn `Provider = Claude`, chọn model rồi bấm
+   `Save`. Nút header sẽ đổi thành `○ Claude`/`● Claude` theo trạng thái đăng
+   nhập.
+
+Chỉ một provider hoạt động tại một thời điểm cho toàn app. Claude được cấp
+quyền đọc/ghi đầy đủ trong project directory đang mở, tương đương
+`workspace-write` của Codex.
+
+Khi Provider = Claude, mỗi bước Generate DNA (TTS Script, Beat DNA, Background
+Music, Screen SRT) tự động đồng bộ nội dung DNA đang cấu hình thành Claude
+Skill tại `<Workspace Root>/.claude/skills/<tên>/SKILL.md` (`tts-dna`,
+`beat-dna`, `background-music-dna`, `screen-srt-dna`), rồi gọi Claude qua
+`/tên-skill` thay vì nhúng thẳng DNA vào prompt. Mọi project mở từ Workspace
+Root đó tự thấy skill (Claude Code tìm `.claude/skills` bằng cách đi ngược từ
+thư mục project lên các thư mục cha). Với Codex, DNA vẫn được nhúng thẳng vào
+prompt như trước, không có gì thay đổi.
 
 ## Bắt đầu một project
 

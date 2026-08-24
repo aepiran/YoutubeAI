@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from storyflow_studio.core.settings import AISettings
+from storyflow_studio.modules.ai.claude_service import ClaudeAIService
 from storyflow_studio.modules.ai.service import CodexAIService
 
 
@@ -79,6 +80,111 @@ class CodexAIServiceTests(unittest.TestCase):
             {"model_reasoning_effort": "high"},
         )
         self.assertEqual(self.codex.thread_options["cwd"], resolved)
+
+
+class FakeClaudeQuery:
+    def __init__(self, messages: list[object]) -> None:
+        self.messages = messages
+        self.calls: list[dict[str, object]] = []
+
+    async def __call__(self, *, prompt: str, options: object):
+        self.calls.append({"prompt": prompt, "options": options})
+        for message in self.messages:
+            yield message
+
+
+class FakeSubprocessRunner:
+    def __init__(self, stdout: str = "", returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+        self.calls: list[list[str]] = []
+
+    def __call__(self, command: list[str], **_kwargs: object) -> SimpleNamespace:
+        self.calls.append(command)
+        return SimpleNamespace(stdout=self.stdout, stderr="", returncode=self.returncode)
+
+
+def _options_factory(**kwargs: object) -> SimpleNamespace:
+    return SimpleNamespace(**kwargs)
+
+
+class ClaudeAIServiceTests(unittest.TestCase):
+    def test_snapshot_reports_missing_cli(self) -> None:
+        service = ClaudeAIService(
+            query_fn=FakeClaudeQuery([]),
+            options_factory=_options_factory,
+            cli_resolver=lambda: None,
+            subprocess_runner=FakeSubprocessRunner(),
+        )
+        snapshot = service.snapshot()
+        self.assertFalse(snapshot.auth.authenticated)
+        self.assertEqual(snapshot.auth.label, "Claude CLI not found")
+
+    def test_snapshot_accepts_claude_session(self) -> None:
+        runner = FakeSubprocessRunner(
+            stdout=(
+                '{"loggedIn": true, "email": "user@example.com", '
+                '"subscriptionType": "pro"}'
+            )
+        )
+        service = ClaudeAIService(
+            query_fn=FakeClaudeQuery([]),
+            options_factory=_options_factory,
+            cli_resolver=lambda: "claude",
+            subprocess_runner=runner,
+        )
+        snapshot = service.snapshot()
+        self.assertTrue(snapshot.auth.authenticated)
+        self.assertIn("user@example.com", snapshot.auth.detail)
+        self.assertTrue(snapshot.models)
+        self.assertEqual(runner.calls[-1], ["claude", "auth", "status"])
+
+    def test_snapshot_rejects_logged_out_session(self) -> None:
+        runner = FakeSubprocessRunner(stdout='{"loggedIn": false}', returncode=1)
+        service = ClaudeAIService(
+            query_fn=FakeClaudeQuery([]),
+            options_factory=_options_factory,
+            cli_resolver=lambda: "claude",
+            subprocess_runner=runner,
+        )
+        snapshot = service.snapshot()
+        self.assertFalse(snapshot.auth.authenticated)
+        self.assertEqual(snapshot.models, ())
+
+    def test_run_passes_project_scope_model_and_effort(self) -> None:
+        result_message = SimpleNamespace(is_error=False, result="done")
+        query_fn = FakeClaudeQuery([result_message])
+        service = ClaudeAIService(
+            query_fn=query_fn,
+            options_factory=_options_factory,
+            cli_resolver=lambda: "claude",
+            subprocess_runner=FakeSubprocessRunner(),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            resolved = str(Path(directory).resolve())
+            result = service.run(
+                "Do the task",
+                directory,
+                AISettings("claude-opus-5", "high", "claude"),
+            )
+        self.assertEqual(result, "done")
+        options = query_fn.calls[0]["options"]
+        self.assertEqual(options.cwd, resolved)
+        self.assertEqual(options.model, "claude-opus-5")
+        self.assertEqual(options.effort, "high")
+        self.assertEqual(options.permission_mode, "bypassPermissions")
+
+    def test_run_raises_on_error_result(self) -> None:
+        result_message = SimpleNamespace(is_error=True, result="boom")
+        service = ClaudeAIService(
+            query_fn=FakeClaudeQuery([result_message]),
+            options_factory=_options_factory,
+            cli_resolver=lambda: "claude",
+            subprocess_runner=FakeSubprocessRunner(),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(RuntimeError):
+                service.run("Do the task", directory, AISettings())
 
 
 if __name__ == "__main__":

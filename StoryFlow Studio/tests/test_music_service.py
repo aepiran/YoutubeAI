@@ -10,11 +10,18 @@ import unittest
 import wave
 from pathlib import Path
 
-from storyflow_studio.core.settings import AppSettings, MusicSettings
+from storyflow_studio.core.settings import (
+    AISettings,
+    AppSettings,
+    MusicSettings,
+    WorkspaceSettings,
+)
+from storyflow_studio.modules.ai import BACKGROUND_MUSIC_DNA_SKILL
 from storyflow_studio.modules.music import (
     MUSIC_CUE_COLUMNS,
     FFmpegMusicRenderer,
     MusicCue,
+    MusicDNAService,
     MusicWorkflowError,
     MusicWorkflowService,
     MusicDNAPlan,
@@ -99,6 +106,18 @@ class RecommendationDNAService:
         )
 
 
+class MusicAIService:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+        self.prompt = ""
+        self.skill: str | None = None
+
+    def run(self, prompt, workdir, settings, *, skill=None) -> str:
+        self.prompt = prompt
+        self.skill = skill
+        return json.dumps(self.payload, ensure_ascii=False)
+
+
 class FakeRenderer:
     def __init__(self) -> None:
         self.cues = []
@@ -107,6 +126,23 @@ class FakeRenderer:
         cancellation.raise_if_cancelled()
         self.cues = cues
         destination.write_bytes(b"rendered mp3")
+
+
+class MusicDNAServiceTests(unittest.TestCase):
+    def test_generate_strips_markdown_fence_some_models_add_despite_instructions(
+        self,
+    ) -> None:
+        payload = {"cues": cue_rows(), "sections": [], "recommendations": []}
+        ai = MusicAIService(payload)
+        ai.run = lambda prompt, workdir, settings, *, skill=None: (
+            "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"
+        )
+
+        plan = MusicDNAService(ai).generate(
+            "script", [], [], "dna", 10.0, Path("."), AISettings()
+        )
+
+        self.assertEqual(plan.cue_rows, cue_rows())
 
 
 class MusicWorkflowServiceTests(unittest.TestCase):
@@ -149,6 +185,27 @@ class MusicWorkflowServiceTests(unittest.TestCase):
             self.assertEqual([cue.code for cue in cues], ["C01", "C02"])
             self.assertEqual(cues[0].end - cues[1].start, 2.0)
             self.assertEqual(tuple(cues[0].csv_row()), MUSIC_CUE_COLUMNS)
+
+    def test_crossfade_mismatch_between_declared_and_actual_is_reconciled(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory)
+            tracks = []
+            for name in ("calm.mp3", "warm.mp3"):
+                (library / name).write_bytes(b"audio")
+                tracks.append({"filename": name, "duration_seconds": 60})
+            rows = cue_rows()
+            # C01 declares crossfade_out_seconds=2, but its timestamps now
+            # give an actual overlap of 3s with C02 (start=00:04.000) — the
+            # kind of ~1s drift observed from Claude on long cue sheets.
+            rows[0]["end"] = "00:07.000"
+
+            cues = parse_and_validate_music_cues(rows, library, tracks, 10.0)
+
+            self.assertEqual(cues[0].end - cues[1].start, 3.0)
+            self.assertEqual(cues[0].fade_out, 3.0)
+            self.assertEqual(cues[1].fade_in, 3.0)
 
     def test_gap_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -223,6 +280,61 @@ class MusicWorkflowServiceTests(unittest.TestCase):
             self.assertEqual(rows[1]["start"], "00:04.000")
             self.assertEqual(rows[1]["target_music_lufs"], "-34.5")
             self.assertEqual(len(renderer.cues), 2)
+
+    def test_claude_provider_syncs_workspace_skill_for_background_music_dna(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "library"
+            library.mkdir()
+            tracks = []
+            for name in ("calm.mp3", "warm.mp3"):
+                (library / name).write_bytes(b"audio")
+                tracks.append({"filename": name, "duration_seconds": 60})
+            (library / "music_library.json").write_text(
+                json.dumps({"schema_version": 1, "tracks": tracks}),
+                encoding="utf-8",
+            )
+            workspace_root = root / "workspace"
+            settings = AppSettings(
+                ai=AISettings(provider="claude"),
+                workspace=WorkspaceSettings(workspace_root=str(workspace_root)),
+                music=MusicSettings(library_folder=str(library), enabled=True),
+            )
+            project = WorkspaceService().create_project(
+                workspace_root, "Music", "music", settings
+            )
+            project.path_for("tts_script").write_text(
+                "A gentle prayer.", encoding="utf-8"
+            )
+            project.path_for("subtitle_file").write_text(
+                "1\n00:00:00,000 --> 00:00:10,000\nA gentle prayer.\n",
+                encoding="utf-8",
+            )
+            project.path_for("audio_file").write_bytes(b"narration")
+            ai = MusicAIService(
+                {"cues": cue_rows(), "sections": [], "recommendations": []}
+            )
+            service = MusicWorkflowService(
+                ai_service=ai,
+                dna_service=MusicDNAService(ai),
+                renderer=FakeRenderer(),
+                duration_probe=lambda _path: 10.0,
+            )
+
+            service.run(
+                project, settings, lambda _progress: None, CancellationToken()
+            )
+
+            self.assertEqual(ai.skill, BACKGROUND_MUSIC_DNA_SKILL)
+            self.assertIn(BACKGROUND_MUSIC_DNA_SKILL, ai.prompt)
+            skill_file = (
+                workspace_root
+                / ".claude"
+                / "skills"
+                / BACKGROUND_MUSIC_DNA_SKILL
+                / "SKILL.md"
+            )
+            self.assertTrue(skill_file.is_file())
 
     def test_workflow_writes_script_analysis_and_can_replace_safely(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

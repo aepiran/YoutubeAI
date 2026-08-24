@@ -16,6 +16,8 @@ from typing import Callable, Protocol
 from ...core.media import probe_audio_duration
 from ...core.settings import AISettings, AppSettings
 from ..ai.service import AIService
+from ..ai.skills import BEAT_DNA_SKILL, resolve_dna_content
+from ..ai.text import strip_markdown_fence
 from ..workspace import Project
 
 
@@ -104,11 +106,14 @@ class BeatDNAService:
         ai_settings: AISettings,
         audio_duration: float,
         role: str = "",
+        *,
+        skill: str | None = None,
     ) -> list[BeatRow]:
         response = self.ai_service.run(
             self._prompt(script, cues, dna, audio_duration, role),
             workdir,
             ai_settings,
+            skill=skill,
         )
         return self._parse_response(response)
 
@@ -183,7 +188,7 @@ Validation targets:
 
     @staticmethod
     def _parse_response(response: str) -> list[BeatRow]:
-        value = response.strip()
+        value = strip_markdown_fence(response)
         if not value:
             raise BeatWorkflowError("Codex không trả Beat DNA output.")
         if value.startswith("```") or value.endswith("```"):
@@ -265,6 +270,9 @@ class BeatWorkflowService:
         progress(BeatProgress("beat", "running", 5, "Validating Beat inputs…"))
         script = script_path.read_text(encoding="utf-8-sig")
         dna = dna_path.read_text(encoding="utf-8-sig")
+        dna_for_prompt, skill = resolve_dna_content(
+            value.ai.provider, value.workspace.workspace_root, BEAT_DNA_SKILL, dna
+        )
         cues = parse_srt(subtitle_path)
         validate_script_srt_coverage(script, cues)
         probed_duration = self.duration_probe(audio_path)
@@ -290,11 +298,12 @@ class BeatWorkflowService:
         rows = self.dna_service.generate(
             script,
             cues,
-            dna,
+            dna_for_prompt,
             project.root,
             value.ai,
             duration,
             _load_role(value),
+            skill=skill,
         )
         cancellation.raise_if_cancelled()
         progress(BeatProgress("beat", "running", 82, "Validating coverage and timing…"))

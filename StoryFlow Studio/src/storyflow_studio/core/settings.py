@@ -13,20 +13,25 @@ from typing import Any
 from .secrets import KeyringSecretStore, SecretStore
 
 
-SETTINGS_SCHEMA_VERSION = 10
+SETTINGS_SCHEMA_VERSION = 11
 REASONING_EFFORTS = ("default", "low", "medium", "high", "xhigh")
+AI_PROVIDERS = ("codex", "claude")
 
 
 @dataclass(slots=True)
 class AISettings:
     model: str = ""
     reasoning_effort: str = "default"
+    provider: str = "codex"
 
     def normalized(self) -> "AISettings":
         effort = self.reasoning_effort.strip().lower()
         if effort not in REASONING_EFFORTS:
             effort = "default"
-        return AISettings(self.model.strip(), effort)
+        provider = self.provider.strip().lower()
+        if provider not in AI_PROVIDERS:
+            provider = "codex"
+        return AISettings(self.model.strip(), effort, provider)
 
 
 @dataclass(slots=True)
@@ -298,6 +303,7 @@ class SettingsStore:
             ai=AISettings(
                 str(ai_raw.get("model", "")),
                 str(ai_raw.get("reasoning_effort", "default")),
+                str(ai_raw.get("provider", "codex")),
             ),
             workspace=WorkspaceSettings(
                 workspace_root=str(workspace_raw.get("workspace_root", "")),

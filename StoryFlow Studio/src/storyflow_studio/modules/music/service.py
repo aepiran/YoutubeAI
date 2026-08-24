@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -18,6 +18,8 @@ from ...core.process import WINDOWS_NO_WINDOW
 from ...core.resources import builtin_background_music_dna
 from ...core.settings import AISettings, AppSettings
 from ..ai.service import AIService
+from ..ai.skills import BACKGROUND_MUSIC_DNA_SKILL, resolve_dna_content
+from ..ai.text import strip_markdown_fence
 from ..beat.service import parse_srt, validate_script_srt_coverage
 from ..workspace import Project
 from .library import LIBRARY_MANIFEST
@@ -133,6 +135,8 @@ class MusicDNAService:
         workdir: Path,
         ai_settings: AISettings,
         role: str = "",
+        *,
+        skill: str | None = None,
     ) -> MusicDNAPlan:
         response = self.ai_service.run(
             self._prompt(
@@ -145,8 +149,9 @@ class MusicDNAService:
             ),
             workdir,
             ai_settings,
+            skill=skill,
         )
-        value = response.strip()
+        value = strip_markdown_fence(response)
         if not value or value.startswith("```") or value.endswith("```"):
             raise MusicWorkflowError("Codex phải trả JSON thuần cho Music DNA.")
         try:
@@ -454,6 +459,12 @@ class MusicWorkflowService:
             raise MusicWorkflowError("Không xác định được thời lượng narration.")
         library, library_tracks = _load_library(value.music.library_folder)
         dna = _load_dna(value.music.dna_path)
+        dna_for_prompt, skill = resolve_dna_content(
+            value.ai.provider,
+            value.workspace.workspace_root,
+            BACKGROUND_MUSIC_DNA_SKILL,
+            dna,
+        )
         progress(
             MusicProgress(
                 "music",
@@ -468,11 +479,12 @@ class MusicWorkflowService:
             script,
             srt_cues,
             library_tracks,
-            dna,
+            dna_for_prompt,
             duration,
             project.root,
             value.ai,
             _load_role(value),
+            skill=skill,
         )
         plan = (
             generated
@@ -867,16 +879,38 @@ def parse_and_validate_music_cues(
         )
     if abs(cues[0].start) > 0.001:
         raise MusicWorkflowError("C01 phải bắt đầu tại 00:00.000.")
-    for previous, current in zip(cues, cues[1:]):
+    # Some models keep crossfade_in/out_seconds slightly inconsistent with
+    # the actual cue start/end timestamps on long cue sheets (observed ~1s
+    # drift on 15+ cue sequences) even though both are asked to match
+    # exactly. The timestamps are the ground truth for playback timing, so
+    # reconcile fade_out/fade_in to the real overlap instead of requiring
+    # two independently-generated numbers to agree — this keeps the
+    # renderer's crossfade curve correct without rejecting an otherwise
+    # well-timed cue sheet over a rounding-sized mismatch.
+    fade_out_by_index: dict[int, float] = {}
+    fade_in_by_index: dict[int, float] = {}
+    for index in range(len(cues) - 1):
+        previous, current = cues[index], cues[index + 1]
         overlap = previous.end - current.start
         if overlap < -0.05:
             raise MusicWorkflowError(f"Có gap trước {current.code}: {-overlap:.3f}s.")
-        expected_overlap = min(previous.fade_out, current.fade_in)
-        if abs(overlap - expected_overlap) > 0.05:
+        shortest_neighbor = min(previous.duration, current.duration)
+        if overlap - shortest_neighbor > 0.05:
             raise MusicWorkflowError(
-                f"Overlap trước {current.code} là {overlap:.3f}s, cần khớp "
-                f"crossfade {expected_overlap:.3f}s."
+                f"Overlap trước {current.code} là {overlap:.3f}s, dài hơn cue "
+                "liền kề — cue sheet có thể bị lỗi cấu trúc."
             )
+        overlap = round(overlap, 6)
+        fade_out_by_index[index] = overlap
+        fade_in_by_index[index + 1] = overlap
+    cues = [
+        replace(
+            cue,
+            fade_out=fade_out_by_index.get(index, cue.fade_out),
+            fade_in=fade_in_by_index.get(index, cue.fade_in),
+        )
+        for index, cue in enumerate(cues)
+    ]
     if abs(cues[-1].end - duration) > 0.25:
         raise MusicWorkflowError(
             f"Cue cuối phải kết thúc tại {format_music_timestamp(duration)}."

@@ -106,4 +106,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "Installation completed but the application or bundled Codex CLI check failed."
 }
 
+$ClaudeCommand = Get-Command "claude" -ErrorAction SilentlyContinue
+if ($null -eq $ClaudeCommand) {
+    Write-Host ""
+    Write-Host "Optional: to use Claude as the AI Provider (Settings -> AI Provider)," -ForegroundColor Yellow
+    Write-Host "  run: $VenvPython -m pip install `"claude-agent-sdk`"" -ForegroundColor Yellow
+    Write-Host "  then run: claude auth login" -ForegroundColor Yellow
+    Write-Host "  See https://docs.claude.com/en/docs/claude-code/setup for details." -ForegroundColor Yellow
+}
+
 Write-Host "Setup completed. Start the application with run.bat." -ForegroundColor Green

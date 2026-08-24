@@ -44,6 +44,22 @@ for package in (
 hiddenimports += codex_cli_hiddenimports
 
 binaries = list(codex_cli_binaries)
+
+# claude-agent-sdk is an optional dependency (Settings -> AI Provider ->
+# Claude); only bundle it when the build environment has it installed, and
+# never fail the build when it does not.
+try:
+    claude_datas, claude_binaries, claude_hiddenimports = collect_all(
+        "claude_agent_sdk"
+    )
+except Exception:
+    pass
+else:
+    datas += claude_datas
+    binaries += claude_binaries
+    hiddenimports += claude_hiddenimports
+    datas += copy_metadata("claude-agent-sdk")
+
 for executable_name in ("ffmpeg", "ffprobe"):
     executable = shutil.which(executable_name)
     if not executable:

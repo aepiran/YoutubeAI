@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 from ..core.settings import SettingsStore
 from ..core.script_text import extract_script_body
 from ..core.version import version_badge
+from ..modules.ai import create_ai_service
 from ..modules.ai.service import AIService, AISnapshot, AuthStatus
 from ..modules.beat import (
     BeatProgress,
@@ -269,7 +270,7 @@ class MainWindow(QMainWindow):
         self.append_log("StoryFlow Studio started.")
         self._refresh_recent_projects()
         self._restore_last_project()
-        self.refresh_codex()
+        self.refresh_ai_provider()
 
     def _build_header(self) -> QFrame:
         header = QFrame()
@@ -304,10 +305,10 @@ class MainWindow(QMainWindow):
         titles.addWidget(subtitle)
         layout.addLayout(titles)
         layout.addStretch(1)
-        self.codex_button = QPushButton("○ Codex")
+        self.codex_button = QPushButton(f"○ {self._provider_label()}")
         self.codex_button.setObjectName("CodexButton")
-        self.codex_button.setAccessibleName("Codex status")
-        self.codex_button.clicked.connect(self.codex_button_clicked)
+        self.codex_button.setAccessibleName("AI provider status")
+        self.codex_button.clicked.connect(self.ai_provider_button_clicked)
         layout.addWidget(self.codex_button)
         self.settings_button = QPushButton("⚙")
         self.settings_button.setObjectName("HeaderButton")
@@ -719,24 +720,35 @@ class MainWindow(QMainWindow):
         thread.finished.connect(thread.deleteLater)
         thread.start()
 
+    def _provider_label(self) -> str:
+        return "Claude" if self.settings.ai.provider == "claude" else "Codex"
+
+    def _ensure_ai_authenticated(self, action: str) -> bool:
+        if self.snapshot.auth.authenticated:
+            return True
+        self.show_error(f"Hãy đăng nhập {self._provider_label()} trước khi {action}.")
+        return False
+
     @Slot()
-    def refresh_codex(self) -> None:
-        self.append_log("Checking Codex ChatGPT session…", "CODEX")
-        self.set_auth_busy("Checking Codex…")
+    def refresh_ai_provider(self) -> None:
+        label = self._provider_label()
+        self.append_log(f"Checking {label} session…", "AI")
+        self.set_auth_busy(f"Checking {label}…")
         self.start_job(self.ai_service.snapshot, self.apply_snapshot)
 
     @Slot()
-    def sign_in_chatgpt(self) -> None:
-        self.append_log("Starting ChatGPT sign-in flow…", "CODEX")
-        self.set_auth_busy("Waiting for ChatGPT sign-in…")
-        self.start_job(self.ai_service.login_chatgpt, self.apply_snapshot)
+    def sign_in_ai_provider(self) -> None:
+        label = self._provider_label()
+        self.append_log(f"Starting {label} sign-in flow…", "AI")
+        self.set_auth_busy(f"Waiting for {label} sign-in…")
+        self.start_job(self.ai_service.login, self.apply_snapshot)
 
     @Slot()
-    def codex_button_clicked(self) -> None:
+    def ai_provider_button_clicked(self) -> None:
         if self.snapshot.auth.authenticated:
-            self.refresh_codex()
+            self.refresh_ai_provider()
         else:
-            self.sign_in_chatgpt()
+            self.sign_in_ai_provider()
 
     def set_auth_busy(self, message: str) -> None:
         self.codex_button.setEnabled(False)
@@ -748,12 +760,13 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def apply_snapshot(self, result: object) -> None:
         if not isinstance(result, AISnapshot):
-            self.show_error("Codex service trả về trạng thái không hợp lệ.")
+            self.show_error("AI provider trả về trạng thái không hợp lệ.")
             return
         self.snapshot = result
         auth = result.auth
+        label = self._provider_label()
         self.codex_button.setEnabled(True)
-        self.codex_button.setText(f"{'●' if auth.authenticated else '○'} Codex")
+        self.codex_button.setText(f"{'●' if auth.authenticated else '○'} {label}")
         self.codex_button.setProperty("authenticated", auth.authenticated)
         self.codex_button.style().unpolish(self.codex_button)
         self.codex_button.style().polish(self.codex_button)
@@ -761,8 +774,8 @@ class MainWindow(QMainWindow):
             " · ".join(part for part in (auth.label, auth.detail) if part)
         )
         self.append_log(
-            auth.label or ("Codex connected" if auth.authenticated else "Codex disconnected"),
-            "CODEX",
+            auth.label or (f"{label} connected" if auth.authenticated else f"{label} disconnected"),
+            "AI",
         )
         if self.settings_dialog:
             self.settings_dialog.set_snapshot(result)
@@ -771,8 +784,8 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.settings, self.snapshot, self)
         self.settings_dialog = dialog
-        dialog.refresh_requested.connect(self.refresh_codex)
-        dialog.login_requested.connect(self.sign_in_chatgpt)
+        dialog.refresh_requested.connect(self.refresh_ai_provider)
+        dialog.login_requested.connect(self.sign_in_ai_provider)
         accepted = dialog.exec()
         self.settings_dialog = None
         if not accepted:
@@ -783,8 +796,12 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.show_error(f"Không lưu được Settings: {exc}")
             return
+        provider_changed = updated.ai.provider != self.settings.ai.provider
         self.settings = updated
         self.ai_settings = updated.ai
+        if provider_changed:
+            self.ai_service = create_ai_service(updated.ai.provider)
+            self.refresh_ai_provider()
         self._refresh_recent_projects()
         if self.current_project is not None:
             self._apply_project_stage_states(self.current_project)
@@ -939,10 +956,7 @@ class MainWindow(QMainWindow):
         if not self._choose_auto_export():
             self.append_log("Auto workflow cancelled: no export option selected.", "AUTO")
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error(
-                "Hãy đăng nhập Codex bằng ChatGPT trước khi chạy Auto workflow."
-            )
+        if not self._ensure_ai_authenticated("chạy Auto workflow"):
             return
         self.auto_workflow_running = True
         self.append_log(
@@ -1036,10 +1050,7 @@ class MainWindow(QMainWindow):
             or self.video_builder_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error(
-                "Hãy đăng nhập Codex bằng ChatGPT trước khi tạo TTS Script."
-            )
+        if not self._ensure_ai_authenticated("tạo TTS Script"):
             return
         project = self.current_project
         output_exists = project.path_for("tts_script").exists()
@@ -1149,10 +1160,7 @@ class MainWindow(QMainWindow):
             or self.video_builder_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error(
-                "Hãy đăng nhập Codex bằng ChatGPT để tạo screen.srt sau Voice."
-            )
+        if not self._ensure_ai_authenticated("tạo screen.srt sau Voice"):
             return
         project = self.current_project
         screen_only = (
@@ -1213,10 +1221,7 @@ class MainWindow(QMainWindow):
             or self.auto_workflow_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error(
-                "Hãy đăng nhập Codex bằng ChatGPT để tạo screen.srt từ Audio/SRT import."
-            )
+        if not self._ensure_ai_authenticated("tạo screen.srt từ Audio/SRT import"):
             return
         project = self.current_project
         if not project.path_for("tts_script").is_file():
@@ -1349,8 +1354,7 @@ class MainWindow(QMainWindow):
             or self.video_builder_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error("Hãy đăng nhập Codex bằng ChatGPT trước khi chạy TTS DNA.")
+        if not self._ensure_ai_authenticated("chạy TTS DNA"):
             return
         project = self.current_project
         settings = self.settings.normalized()
@@ -1460,8 +1464,7 @@ class MainWindow(QMainWindow):
             or self.video_builder_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error("Hãy đăng nhập Codex bằng ChatGPT trước khi chạy Beat DNA.")
+        if not self._ensure_ai_authenticated("chạy Beat DNA"):
             return
         project = self.current_project
         beat_outputs_exist = (
@@ -1568,10 +1571,7 @@ class MainWindow(QMainWindow):
             or self.video_builder_running
         ):
             return
-        if not self.snapshot.auth.authenticated:
-            self.show_error(
-                "Hãy đăng nhập Codex bằng ChatGPT trước khi chạy Background Music DNA."
-            )
+        if not self._ensure_ai_authenticated("chạy Background Music DNA"):
             return
         if not self.settings.music.enabled:
             self.show_error(

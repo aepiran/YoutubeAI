@@ -23,6 +23,8 @@ from ...core.resources import builtin_screen_subtitle_dna
 from ...core.script_text import extract_script_body
 from ...core.settings import AISettings, AppSettings, TTSSettings
 from ..ai.service import AIService
+from ..ai.skills import SCREEN_SRT_DNA_SKILL, TTS_DNA_SKILL, resolve_dna_content
+from ..ai.text import strip_markdown_fence
 from ..beat.service import BeatWorkflowError, parse_srt
 from ..workspace import Project
 
@@ -104,6 +106,7 @@ class ScreenSubtitleService:
         cancellation: CancellationToken,
         *,
         dna: str = "",
+        workspace_root: str = "",
         replace_existing: bool = False,
     ) -> Path:
         script_path = project.path_for("tts_script")
@@ -120,6 +123,9 @@ class ScreenSubtitleService:
         script = script_path.read_text(encoding="utf-8-sig").strip()
         narration_srt = narration_path.read_text(encoding="utf-8-sig").strip()
         screen_dna = dna.strip() or builtin_screen_subtitle_dna().strip()
+        screen_dna, skill = resolve_dna_content(
+            ai_settings.provider, workspace_root, SCREEN_SRT_DNA_SKILL, screen_dna
+        )
         try:
             narration_cues = parse_srt(narration_path)
         except BeatWorkflowError as exc:
@@ -139,17 +145,20 @@ class ScreenSubtitleService:
                     f"Codex creating screen.srt · attempt {attempt}/{self.max_attempts}",
                 )
             )
-            response = self.ai_service.run(
-                self._prompt(
-                    script,
-                    narration_srt,
-                    screen_dna,
-                    validation_error=last_error,
-                    previous_output=previous_output,
-                ),
-                project.root,
-                ai_settings,
-            ).strip()
+            response = strip_markdown_fence(
+                self.ai_service.run(
+                    self._prompt(
+                        script,
+                        narration_srt,
+                        screen_dna,
+                        validation_error=last_error,
+                        previous_output=previous_output,
+                    ),
+                    project.root,
+                    ai_settings,
+                    skill=skill,
+                )
+            )
             previous_output = response
             temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
             try:
@@ -179,6 +188,7 @@ class ScreenSubtitleService:
                     narration_srt,
                     self._serialize(screen_cues),
                     screen_dna,
+                    skill=skill,
                 )
                 cancellation.raise_if_cancelled()
                 _atomic_write_text(destination, self._serialize(screen_cues))
@@ -254,17 +264,22 @@ Technical rules:
         narration_srt: str,
         screen_srt: str,
         screen_dna: str,
+        *,
+        skill: str | None = None,
     ) -> None:
-        response = self.ai_service.run(
-            self._verification_prompt(
-                script,
-                narration_srt,
-                screen_srt,
-                screen_dna,
-            ),
-            project.root,
-            ai_settings,
-        ).strip()
+        response = strip_markdown_fence(
+            self.ai_service.run(
+                self._verification_prompt(
+                    script,
+                    narration_srt,
+                    screen_srt,
+                    screen_dna,
+                ),
+                project.root,
+                ai_settings,
+                skill=skill,
+            )
+        )
         if not response or response.startswith("```") or response.endswith("```"):
             raise TTSWorkflowError(
                 "Codex semantic verification phải trả JSON thuần."
@@ -666,6 +681,22 @@ class VoiceApiClient:
                     handle.write(chunk)
 
 
+def _describe_fidelity_mismatch(source_compact: str, output_compact: str, context: int = 40) -> str:
+    """Point at the first differing region so a user can see what Claude changed."""
+    limit = min(len(source_compact), len(output_compact))
+    index = 0
+    while index < limit and source_compact[index] == output_compact[index]:
+        index += 1
+    start = max(0, index - context)
+    source_snippet = source_compact[start : index + context]
+    output_snippet = output_compact[start : index + context]
+    return (
+        f"Sai khác đầu tiên ở vị trí ký tự {index}:\n"
+        f"  Gốc:  ...{source_snippet}...\n"
+        f"  Output: ...{output_snippet}..."
+    )
+
+
 class TTSDNAService:
     def __init__(self, ai_service: AIService) -> None:
         self.ai_service = ai_service
@@ -677,9 +708,13 @@ class TTSDNAService:
         workdir: Path,
         ai_settings: AISettings,
         role: str = "",
+        *,
+        skill: str | None = None,
     ) -> str:
         prompt = self._prompt(raw_script, dna, role)
-        response = self.ai_service.run(prompt, workdir, ai_settings).strip()
+        response = strip_markdown_fence(
+            self.ai_service.run(prompt, workdir, ai_settings, skill=skill)
+        )
         self.validate_fidelity(raw_script, response)
         return response.rstrip() + "\n"
 
@@ -721,7 +756,8 @@ Critical execution rules:
         if source_compact != output_compact:
             raise TTSWorkflowError(
                 "TTS DNA output đã thay đổi nội dung. Voice API chưa được gọi; "
-                "hãy kiểm tra DNA hoặc output Codex."
+                "hãy kiểm tra DNA hoặc output Codex.\n"
+                f"{_describe_fidelity_mismatch(source_compact, output_compact)}"
             )
 
 
@@ -1051,11 +1087,14 @@ class TTSWorkflowService:
             )
         dna_path = _resolve_required_file(value.tts.dna_path, "TTS DNA")
         dna = dna_path.read_text(encoding="utf-8-sig")
+        dna_for_prompt, skill = resolve_dna_content(
+            value.ai.provider, value.workspace.workspace_root, TTS_DNA_SKILL, dna
+        )
         role = _load_role(value)
         cancellation.raise_if_cancelled()
         progress(TTSProgress("tts_script", "running", None, f"Applying DNA · {dna_path.name}"))
         transformed = self.dna_service.transform(
-            raw_script, dna, project.root, value.ai, role
+            raw_script, dna_for_prompt, project.root, value.ai, role, skill=skill
         )
         cancellation.raise_if_cancelled()
         _atomic_write_text(tts_script, transformed)
@@ -1127,6 +1166,7 @@ class TTSWorkflowService:
             progress,
             cancellation,
             dna=screen_dna,
+            workspace_root=value.workspace.workspace_root,
             replace_existing=replace_existing,
         )
 

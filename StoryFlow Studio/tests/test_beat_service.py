@@ -6,7 +6,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from storyflow_studio.core.settings import AppSettings, BeatSettings
+from storyflow_studio.core.settings import (
+    AISettings,
+    AppSettings,
+    BeatSettings,
+    WorkspaceSettings,
+)
+from storyflow_studio.modules.ai import BEAT_DNA_SKILL
 from storyflow_studio.modules.beat import (
     REQUIRED_COLUMNS,
     BeatWorkflowError,
@@ -28,10 +34,12 @@ class BeatAIService:
         self.payload = payload
         self.prompt = ""
         self.workdir: Path | None = None
+        self.skill: str | None = None
 
-    def run(self, prompt, workdir, settings) -> str:
+    def run(self, prompt, workdir, settings, *, skill=None) -> str:
         self.prompt = prompt
         self.workdir = Path(workdir)
+        self.skill = skill
         return json.dumps(self.payload, ensure_ascii=False)
 
 
@@ -118,6 +126,48 @@ class BeatWorkflowServiceTests(unittest.TestCase):
             self.assertTrue(timing["sources"]["subtitle_sha256"])
             self.assertEqual(updates[-1].state, "completed")
             self.assertEqual(updates[-1].percent, 100)
+
+    def test_claude_provider_syncs_workspace_skill_and_references_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dna = root / "beat-dna.md"
+            dna.write_text("Create calm visual beats.", encoding="utf-8")
+            workspace_root = root / "workspace"
+            settings = AppSettings(
+                ai=AISettings(provider="claude"),
+                workspace=WorkspaceSettings(workspace_root=str(workspace_root)),
+                beat=BeatSettings(str(dna), "footage.csv"),
+            )
+            project = WorkspaceService().create_project(
+                workspace_root, "Beat Story", "beat-story", settings
+            )
+            project.path_for("tts_script").write_text(
+                "Hope rises with the morning. Walk forward in peace.",
+                encoding="utf-8",
+            )
+            project.path_for("subtitle_file").write_text(
+                "1\n00:00:00,000 --> 00:00:02,000\n"
+                "Hope rises with the morning.\n\n"
+                "2\n00:00:02,000 --> 00:00:04,000\n"
+                "Walk forward in peace.\n",
+                encoding="utf-8",
+            )
+            project.path_for("audio_file").write_bytes(b"mp3-data")
+            ai = BeatAIService(valid_payload())
+            BeatWorkflowService(ai, duration_probe=lambda path: 4.1).run(
+                project, settings, lambda update: None, FakeCancellation()
+            )
+
+            self.assertEqual(ai.skill, BEAT_DNA_SKILL)
+            self.assertNotIn("Create calm visual beats.", ai.prompt)
+            self.assertIn(BEAT_DNA_SKILL, ai.prompt)
+            skill_file = (
+                workspace_root / ".claude" / "skills" / BEAT_DNA_SKILL / "SKILL.md"
+            )
+            self.assertTrue(skill_file.is_file())
+            content = skill_file.read_text(encoding="utf-8")
+            self.assertIn(f"name: {BEAT_DNA_SKILL}", content)
+            self.assertIn("Create calm visual beats.", content)
 
     def test_gap_in_cue_coverage_never_publishes_csv(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

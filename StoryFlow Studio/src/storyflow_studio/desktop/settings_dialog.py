@@ -43,6 +43,7 @@ from ..core.settings import (
     VideoBuilderSettings,
     WorkspaceSettings,
 )
+from ..modules.ai import CLAUDE_MODEL_OPTIONS
 from ..modules.ai.service import AISnapshot
 from ..modules.music import (
     MIXKIT_CATALOG_URL,
@@ -122,6 +123,12 @@ TTS_LANGUAGE_OPTIONS = (
 
 PEXELS_API_URL = "https://www.pexels.com/api/"
 PIXABAY_API_DOCS_URL = "https://pixabay.com/api/docs/"
+CLAUDE_CODE_SETUP_URL = "https://docs.claude.com/en/docs/claude-code/setup"
+
+AI_PROVIDER_OPTIONS = (
+    ("Codex (ChatGPT login)", "codex"),
+    ("Claude (Claude Code CLI)", "claude"),
+)
 
 class SettingsDialog(QDialog):
     refresh_requested = Signal()
@@ -161,7 +168,7 @@ class SettingsDialog(QDialog):
         sidebar_layout.addWidget(sidebar_title)
 
         self.section_names = (
-            "ChatGPT / AI",
+            "AI Provider",
             "Workspace & Role",
             "TTS & Voice",
             "Background Music",
@@ -232,17 +239,38 @@ class SettingsDialog(QDialog):
         page, layout = self._page()
         self._section_header(
             layout,
-            "ChatGPT and AI",
-            "Manage the Codex account, model, reasoning effort and project permission.",
+            "AI Provider",
+            "Choose Codex or Claude, manage the account, model, reasoning effort "
+            "and project permission.",
         )
-        account_box = QGroupBox("ChatGPT Account")
+        self._snapshot_provider = settings.provider
+        self._last_snapshot = snapshot
+
+        provider_box = QGroupBox("Provider")
+        provider_layout = QVBoxLayout(provider_box)
+        self.provider = QComboBox()
+        for label, value in AI_PROVIDER_OPTIONS:
+            self.provider.addItem(label, value)
+        provider_index = self.provider.findData(settings.provider)
+        self.provider.setCurrentIndex(max(0, provider_index))
+        provider_layout.addWidget(self._field("Provider", self.provider))
+        provider_hint = QLabel(
+            "Only one provider runs at a time. Both use a saved browser login "
+            "session; StoryFlow never asks for an OpenAI or Anthropic API key."
+        )
+        provider_hint.setObjectName("Muted")
+        provider_hint.setWordWrap(True)
+        provider_layout.addWidget(provider_hint)
+        layout.addWidget(provider_box)
+
+        account_box = QGroupBox("Account")
         account_layout = QVBoxLayout(account_box)
         status_row = QHBoxLayout()
         self.status = QLabel()
         self.status.setObjectName("StatusBadge")
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.refresh_requested)
-        self.login_button = QPushButton("Sign in with ChatGPT")
+        self.login_button = QPushButton("Sign in")
         self.login_button.setObjectName("PrimaryButton")
         self.login_button.clicked.connect(self.login_requested)
         status_row.addWidget(self.status, 1)
@@ -253,6 +281,24 @@ class SettingsDialog(QDialog):
         self.account_detail.setObjectName("Muted")
         account_layout.addWidget(self.account_detail)
         layout.addWidget(account_box)
+
+        self.claude_setup_box = QGroupBox("Claude Code CLI Setup")
+        claude_setup_layout = QVBoxLayout(self.claude_setup_box)
+        claude_setup_text = QLabel(
+            "Claude Code CLI usually ships bundled with StoryFlow's Claude "
+            "dependency. If the app reports the CLI is missing, install it "
+            "using the official guide, then click Sign in above (opens a "
+            "browser to sign in with your Claude account)."
+        )
+        claude_setup_text.setObjectName("SettingsDescription")
+        claude_setup_text.setWordWrap(True)
+        claude_setup_layout.addWidget(claude_setup_text)
+        claude_setup_button = QPushButton("Open Install Guide")
+        claude_setup_button.clicked.connect(
+            lambda: self._open_external_url(CLAUDE_CODE_SETUP_URL)
+        )
+        claude_setup_layout.addWidget(claude_setup_button)
+        layout.addWidget(self.claude_setup_box)
 
         preferences = QGroupBox("AI Preferences")
         preferences_grid = QGridLayout(preferences)
@@ -267,7 +313,7 @@ class SettingsDialog(QDialog):
         preferences_grid.addWidget(
             self._field("Reasoning Effort", self.reasoning), 0, 1
         )
-        permission = QLabel("Workspace Write · current project only")
+        permission = QLabel("Full read/write · current project only")
         permission.setObjectName("Muted")
         permission.setObjectName("PermissionValue")
         preferences_grid.addWidget(
@@ -275,8 +321,8 @@ class SettingsDialog(QDialog):
         )
         layout.addWidget(preferences)
         note = QLabel(
-            "Uses the saved Codex ChatGPT session. StoryFlow does not use an "
-            "OpenAI API key."
+            "Uses the saved Codex or Claude browser-login session. StoryFlow "
+            "does not use an OpenAI or Anthropic API key."
         )
         note.setObjectName("Muted")
         note.setWordWrap(True)
@@ -284,10 +330,27 @@ class SettingsDialog(QDialog):
         layout.addStretch(1)
 
         self._requested_model = settings.model
+        self.claude_setup_box.setVisible(settings.provider == "claude")
         self.set_snapshot(snapshot)
         reasoning_index = self.reasoning.findData(settings.reasoning_effort)
         self.reasoning.setCurrentIndex(max(0, reasoning_index))
+        self.provider.currentIndexChanged.connect(self._provider_selection_changed)
         return self._scroll_page(page)
+
+    def _provider_selection_changed(self) -> None:
+        provider = str(self.provider.currentData() or "codex")
+        self.claude_setup_box.setVisible(provider == "claude")
+        if provider == self._snapshot_provider:
+            self.set_snapshot(self._last_snapshot)
+            return
+        label = "Claude" if provider == "claude" else "Codex"
+        self.status.setText(f"○ Save Settings, then Refresh to check {label} status")
+        self.status.setProperty("authenticated", False)
+        self.status.style().unpolish(self.status)
+        self.status.style().polish(self.status)
+        self.account_detail.setText("")
+        self.login_button.setVisible(False)
+        self._populate_model_options(())
 
     def _build_workspace_tab(self, settings: WorkspaceSettings) -> QWidget:
         page, layout = self._page()
@@ -1140,21 +1203,21 @@ class SettingsDialog(QDialog):
     def _open_external_url(value: str) -> None:
         QDesktopServices.openUrl(QUrl(value))
 
-    @Slot(object)
-    def set_snapshot(self, snapshot: AISnapshot) -> None:
-        auth = snapshot.auth
-        self.status.setText(f"{'●' if auth.authenticated else '○'} {auth.label}")
-        self.status.setProperty("authenticated", auth.authenticated)
-        self.status.style().unpolish(self.status)
-        self.status.style().polish(self.status)
-        self.account_detail.setText(auth.detail or "No account details available.")
-        self.login_button.setVisible(not auth.authenticated)
-        self.set_busy(False)
+    def _populate_model_options(self, models: tuple) -> None:
         current = self._requested_model or self.model.currentData() or ""
         self.model.clear()
-        if snapshot.models:
+        provider = str(self.provider.currentData() or "codex")
+        if provider == "claude":
+            self.model.addItem("Claude Default (Recommended)", "")
+            for option in CLAUDE_MODEL_OPTIONS:
+                label = option.display_name
+                if option.is_default:
+                    label += " · Default"
+                self.model.addItem(label, option.model_id)
+                self.model.setItemData(self.model.count() - 1, option.description, 3)
+        elif models:
             self.model.addItem("Codex Default (Recommended)", "")
-            for option in snapshot.models:
+            for option in models:
                 label = option.display_name or option.model_id
                 if option.is_default:
                     label += " · Default"
@@ -1167,6 +1230,25 @@ class SettingsDialog(QDialog):
         self.model.setCurrentIndex(index if index >= 0 else 0)
         self._requested_model = ""
 
+    @Slot(object)
+    def set_snapshot(self, snapshot: AISnapshot) -> None:
+        self._last_snapshot = snapshot
+        if str(self.provider.currentData() or "codex") != self._snapshot_provider:
+            # A snapshot for the provider that was active when this dialog
+            # opened arrived after the user switched Provider inside the
+            # still-open dialog; keep the "save to check" placeholder instead
+            # of showing status for the wrong provider.
+            return
+        auth = snapshot.auth
+        self.status.setText(f"{'●' if auth.authenticated else '○'} {auth.label}")
+        self.status.setProperty("authenticated", auth.authenticated)
+        self.status.style().unpolish(self.status)
+        self.status.style().polish(self.status)
+        self.account_detail.setText(auth.detail or "No account details available.")
+        self.login_button.setVisible(not auth.authenticated)
+        self.set_busy(False)
+        self._populate_model_options(snapshot.models)
+
     def set_busy(self, busy: bool, message: str = "") -> None:
         self.refresh_button.setEnabled(not busy)
         self.login_button.setEnabled(not busy)
@@ -1178,6 +1260,7 @@ class SettingsDialog(QDialog):
             ai=AISettings(
                 str(self.model.currentData() or ""),
                 str(self.reasoning.currentData() or "default"),
+                str(self.provider.currentData() or "codex"),
             ),
             workspace=WorkspaceSettings(
                 workspace_root=self.workspace_root.text(),

@@ -48,13 +48,15 @@ class AISnapshot:
 class AIService(Protocol):
     def snapshot(self) -> AISnapshot: ...
 
-    def login_chatgpt(self) -> AISnapshot: ...
+    def login(self) -> AISnapshot: ...
 
     def run(
         self,
         prompt: str,
         workdir: str | Path,
         settings: AISettings,
+        *,
+        skill: str | None = None,
     ) -> str: ...
 
 
@@ -87,7 +89,7 @@ class CodexAIService:
         except Exception as exc:
             return AISnapshot(AuthStatus(False, "Codex unavailable", str(exc)))
 
-    def login_chatgpt(self) -> AISnapshot:
+    def login(self) -> AISnapshot:
         try:
             with self._new_codex() as codex:
                 handle = codex.login_chatgpt()
@@ -107,7 +109,11 @@ class CodexAIService:
         prompt: str,
         workdir: str | Path,
         settings: AISettings,
+        *,
+        skill: str | None = None,
     ) -> str:
+        # Codex has no skill concept; `skill` is a Claude-only hint from
+        # AIService.run() callers and is intentionally ignored here.
         clean_prompt = prompt.strip()
         if not clean_prompt:
             raise ValueError("Prompt không được để trống.")
